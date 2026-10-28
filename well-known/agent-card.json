@@ -1,0 +1,46 @@
+{
+  "name": "Codex Immortal MCP",
+  "description": "Governed enterprise agentic AI platform surface for CodexImmortal: product catalog, cryptographic attestation verification, threat-hunt scan requests, and governed purchase proposals. All calls are metered, firewalled, and audit-logged.",
+  "url": "https://codeximmortal-mcp.onrender.com/mcp",
+  "version": "1.1.0",
+  "protocolVersion": "1.0",
+  "capabilities": {
+    "streaming": false,
+    "pushNotifications": false,
+    "stateTransitionHistory": false
+  },
+  "defaultInputModes": ["application/json"],
+  "defaultOutputModes": ["application/json"],
+  "skills": [
+    {
+      "id": "catalog",
+      "name": "Product Catalog",
+      "description": "List CodexImmortal products and services with pricing basis, capabilities, denied capabilities, and validation status.",
+      "tags": ["commerce", "catalog", "b2b", "agentic-commerce"]
+    },
+    {
+      "id": "attestation-verify",
+      "name": "Attestation Verification",
+      "description": "Verify cryptographic attestation records by ID or content hash, including signature and ledger inclusion proof.",
+      "tags": ["security", "audit", "attestation", "pqc"]
+    },
+    {
+      "id": "threat-hunt",
+      "name": "Threat Hunt Scan",
+      "description": "Request defensive threat-hunt scans: supply-chain, insider-threat, and HNDL triage. Read-only by design.",
+      "tags": ["security", "threat-hunting", "defense", "osint"]
+    },
+    {
+      "id": "purchase",
+      "name": "Governed Purchase",
+      "description": "Prepare purchase proposals for catalog items. Test mode only; live financial execution requires human-gated TGA authorization.",
+      "tags": ["commerce", "payments", "ap2", "x402"]
+    }
+  ],
+  "provider": {
+    "organization": "CodexImmortal",
+    "url": "https://codeximmortal.com"
+  },
+  "documentationUrl": "https://github.com/calebfbyker-lab/codeximmortal-mcp",
+  "preferredTransport": "JSONRPC"
+}

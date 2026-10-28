@@ -1,13 +1,18 @@
 import express from "express";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createServer } from "./server.js";
-import { loadTools } from "./load-tools.js";
+import { loadTools, findProjectFile } from "./load-tools.js";
 import { callGatewayTool } from "./gateway.js";
 
 const app = express();
 app.use(express.json());
 
 const tools = loadTools();
+
+app.get("/.well-known/agent-card.json", (_req, res) => {
+  res.type("application/json");
+  res.send(findProjectFile("well-known/agent-card.json"));
+});
 
 app.post("/mcp", async (req, res) => {
   try {
