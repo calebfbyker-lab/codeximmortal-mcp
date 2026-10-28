@@ -1,0 +1,19 @@
+# Codex Immortal
+
+> Enterprise agentic AI platform: governed agents for operations, security, and revenue — every action metered, firewalled, and audit-logged.
+
+Catalog: https://codeximmortal.com/catalog
+Terms & refunds: https://codeximmortal.com/terms
+Docs: https://docs.codeximmortal.com
+MCP manifest: [mcp-manifest.json](mcp-manifest.json)
+
+## Products & services
+
+- Autonomous Threat Hunt Scan — per-scan, cryptographic attestation report
+- Attestation verification — per-lookup
+- Enterprise agentic AI modules — licensing / subscription
+- Structured data feeds — usage-based
+
+## Governance
+
+All purchases are test-mode only until separately approved. Payment tools prepare proposals; humans approve exact financial consequences. See README for registry status.

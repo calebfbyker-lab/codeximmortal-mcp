@@ -1,0 +1,17 @@
+{
+  "name": "@codeximmortal/mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for the Codex Immortal enterprise agentic AI platform: catalog, attestation verification, threat-hunt requests, and governed purchase proposals.",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "bin": { "codeximmortal-mcp": "./dist/index.js" },
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run"
+  },
+  "keywords": ["mcp", "model-context-protocol", "agentic-ai", "security", "threat-hunting", "enterprise-ai"],
+  "repository": { "type": "git", "url": "git+https://github.com/calebfbyker-lab/codeximmortal-mcp.git" }
+}

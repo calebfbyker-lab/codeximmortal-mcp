@@ -1,0 +1,15 @@
+{
+  "domain": "codeximmortal.com",
+  "name": "Codex Immortal",
+  "intent": "Enterprise agentic AI platform selling agent services, modules, and subscriptions",
+  "protocols": { "a2a": true, "mcp": true, "ap2": true, "x402": true, "acp": true },
+  "agentCard": "https://codeximmortal.com/.well-known/agent-card.json",
+  "catalog": "https://codeximmortal.com/api/v1/catalog.json",
+  "checkout": "https://codeximmortal.com/agentic_commerce/checkout_sessions",
+  "payment_schemes": [
+    { "rail": "x402", "asset": "USDC", "network": "eip155:8453", "scheme": "exact" },
+    { "rail": "acp", "processor": "stripe" },
+    { "rail": "ap2", "mandates": ["intent", "cart", "payment"] }
+  ],
+  "docs": "https://docs.codeximmortal.com"
+}
