@@ -1,0 +1,68 @@
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/registry/main/schema/server.json",
+  "name": "io.github.calebfbyker-lab/codeximmortal",
+  "description": "Governed enterprise agentic AI platform surface for CodexImmortal: product catalog, cryptographic attestation verification, threat-hunt scan requests, and governed purchase proposals. Every call is metered, firewalled, and audit-logged.",
+  "version": "1.1.0",
+  "publishers": [
+    {
+      "name": "calebfbyker-lab",
+      "github_username": "calebfbyker-lab",
+      "github_repository": "calebfbyker-lab/codeximmortal-mcp",
+      "contact_email": "calebfbyker@gmail.com"
+    }
+  ],
+  "server": {
+    "type": "remote",
+    "transport": {
+      "type": "streamable-http",
+      "url": "https://codeximmortal-mcp.onrender.com/mcp"
+    }
+  },
+  "stdio_bridge": {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "@codeximmortal/mcp-server"],
+    "env": {
+      "CODEX_GATEWAY_URL": {
+        "description": "CI-059 A2A-GATEWAY JSON-RPC endpoint. Optional: tools/list works without it; tool calls fail closed until set.",
+        "required": false
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "codex_catalog_list",
+      "description": "List Codex Immortal products and services with pricing basis, capabilities, denied capabilities, and validation status."
+    },
+    {
+      "name": "codex_catalog_get_product",
+      "description": "Get the full ERC-8004-shaped service offer for one product: capabilities, pricing, SLA, refund/dispute terms, evidence and validation status."
+    },
+    {
+      "name": "codex_quote_request",
+      "description": "Request a quote for volume, enterprise, or custom-scope engagements. Returns an RFQ reference and expected response time."
+    },
+    {
+      "name": "codex_attestation_verify",
+      "description": "Verify a Codex Immortal attestation record: content hash, signature, timestamp, and ledger inclusion proof."
+    },
+    {
+      "name": "codex_scan_request",
+      "description": "Request an autonomous threat-hunt scan (supply-chain, insider-threat, HNDL triage). Defensive and read-only by design."
+    },
+    {
+      "name": "codex_purchase_initiate",
+      "description": "Prepare a purchase proposal for a catalog item. Test mode only; never executes a payment, charge, or fund transfer."
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/calebfbyker-lab/codeximmortal-mcp",
+    "source": "https://github.com/calebfbyker-lab/codeximmortal-mcp",
+    "id": "calebfbyker-lab/codeximmortal-mcp"
+  },
+  "websiteUrl": "https://codeximmortal.com",
+  "documentationUrl": "https://github.com/calebfbyker-lab/codeximmortal-mcp#readme",
+  "licenses": ["UNLICENSED"],
+  "tags": ["security", "threat-hunting", "agentic-commerce", "attestation", "enterprise-ai"],
+  "categories": ["Security", "AI Agents", "Developer Tools"]
+}
