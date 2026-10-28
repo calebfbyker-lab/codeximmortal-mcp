@@ -1,0 +1,306 @@
+{
+  "catalog_version": "1.2.0",
+  "generated_at": "2026-10-28T22:05:00+00:00",
+  "source_of_truth": "Stripe live account acct_1UUvY6LdLF8CmyxZ (Codex Immortal), products and prices retrieved 2026-10-28",
+  "vendor": {
+    "name": "Codex Immortal",
+    "url": "https://codeximmortal.com"
+  },
+  "payment": {
+    "mode": "test",
+    "live_payouts": "disabled",
+    "note": "Checkout sessions and payment links not yet activated; first live charge requires ERC-8004 Stage 4 one-action pilot with [HUMAN GATE]."
+  },
+  "offers": [
+    {
+      "offer_id": "offer-federation-consensus-module",
+      "product_id": "prod_VWBkP79G94HzZQ",
+      "title": "Federation Consensus Module",
+      "description": "Delivered three-peer federation configuration.",
+      "category": "infrastructure",
+      "capabilities": ["cross-mesh federation", "three-peer consensus configuration", "BFT setup"],
+      "denied_capabilities": ["offensive operations", "autonomous fund movement", "unattended live writes"],
+      "pricing": {
+        "basis": "one-time",
+        "amount_minor": 500000,
+        "currency": "USD",
+        "options": [
+          { "price_id": "price_1UV9N8LdLF8CmyxZsEZUBd8B", "type": "one_time", "amount_minor": 500000, "currency": "USD" }
+        ]
+      },
+      "delivery": { "method": "digital-delivery", "format": "workspace configuration / digital product" },
+      "required_approvals": "purchases above $100 require human gate per ERC-8004 authority stages",
+      "dispute_refund": "https://codeximmortal.com/terms#refund",
+      "evidence": {
+        "validation_status": "uncertified",
+        "source": "live Stripe catalog (acct Codex Immortal)",
+        "note": "catalog record verified live; delivery pipeline uncertified (AX-01/02/04 pending)"
+      },
+      "agent_commerce": { "acp_eligible": true, "ap2_eligible": true, "x402_eligible": false }
+    },
+    {
+      "offer_id": "offer-bitcoin-wealth-engine-module",
+      "product_id": "prod_VWBknyzmDKRuXM",
+      "title": "Bitcoin Wealth Engine Module",
+      "description": "Delivered PSBT and multisig operations workspace.",
+      "category": "revenue",
+      "capabilities": ["PSBT operations workspace", "multisig configuration", "wallet operations"],
+      "denied_capabilities": ["offensive operations", "autonomous fund movement", "unattended live writes"],
+      "pricing": {
+        "basis": "one-time",
+        "amount_minor": 300000,
+        "currency": "USD",
+        "options": [
+          { "price_id": "price_1UV9N9LdLF8CmyxZiOjgu8QG", "type": "one_time", "amount_minor": 300000, "currency": "USD" }
+        ]
+      },
+      "delivery": { "method": "digital-delivery", "format": "workspace configuration / digital product" },
+      "required_approvals": "purchases above $100 require human gate per ERC-8004 authority stages",
+      "dispute_refund": "https://codeximmortal.com/terms#refund",
+      "evidence": {
+        "validation_status": "uncertified",
+        "source": "live Stripe catalog (acct Codex Immortal)",
+        "note": "catalog record verified live; delivery pipeline uncertified (AX-01/02/04 pending)"
+      },
+      "agent_commerce": { "acp_eligible": true, "ap2_eligible": true, "x402_eligible": false }
+    },
+    {
+      "offer_id": "offer-sovereign-memory-graph-module",
+      "product_id": "prod_VWBk0e0mP471yv",
+      "title": "Sovereign Memory Graph Module",
+      "description": "Delivered graph deployment and 10,000 indexed records.",
+      "category": "infrastructure",
+      "capabilities": ["knowledge graph deployment", "10,000 indexed records", "JSON-LD memory store"],
+      "denied_capabilities": ["offensive operations", "autonomous fund movement", "unattended live writes"],
+      "pricing": {
+        "basis": "one-time",
+        "amount_minor": 250000,
+        "currency": "USD",
+        "options": [
+          { "price_id": "price_1UV9N7LdLF8CmyxZanKluess", "type": "one_time", "amount_minor": 250000, "currency": "USD" }
+        ]
+      },
+      "delivery": { "method": "digital-delivery", "format": "workspace configuration / digital product" },
+      "required_approvals": "purchases above $100 require human gate per ERC-8004 authority stages",
+      "dispute_refund": "https://codeximmortal.com/terms#refund",
+      "evidence": {
+        "validation_status": "uncertified",
+        "source": "live Stripe catalog (acct Codex Immortal)",
+        "note": "catalog record verified live; delivery pipeline uncertified (AX-01/02/04 pending)"
+      },
+      "agent_commerce": { "acp_eligible": true, "ap2_eligible": true, "x402_eligible": false }
+    },
+    {
+      "offer_id": "offer-omniseal-defense-module",
+      "product_id": "prod_VWBk2sAwQHHB4y",
+      "title": "Omniseal Defense Module",
+      "description": "Delivered security and compliance posture package.",
+      "category": "security",
+      "capabilities": ["security posture package", "compliance alignment", "hardening baseline"],
+      "denied_capabilities": ["offensive operations", "autonomous fund movement", "unattended live writes"],
+      "pricing": {
+        "basis": "one-time",
+        "amount_minor": 240000,
+        "currency": "USD",
+        "options": [
+          { "price_id": "price_1UV9NALdLF8CmyxZUiXjfWgz", "type": "one_time", "amount_minor": 240000, "currency": "USD" }
+        ]
+      },
+      "delivery": { "method": "digital-delivery", "format": "workspace configuration / digital product" },
+      "required_approvals": "purchases above $100 require human gate per ERC-8004 authority stages",
+      "dispute_refund": "https://codeximmortal.com/terms#refund",
+      "evidence": {
+        "validation_status": "uncertified",
+        "source": "live Stripe catalog (acct Codex Immortal)",
+        "note": "catalog record verified live; delivery pipeline uncertified (AX-01/02/04 pending)"
+      },
+      "agent_commerce": { "acp_eligible": true, "ap2_eligible": true, "x402_eligible": false }
+    },
+    {
+      "offer_id": "offer-revenue-studio-module",
+      "product_id": "prod_VWBkLm36g2RMep",
+      "title": "Revenue Studio Module",
+      "description": "Delivered ledger and receipt-proof workspace.",
+      "category": "revenue",
+      "capabilities": ["revenue ledger workspace", "receipt-proof records", "settlement reconciliation"],
+      "denied_capabilities": ["offensive operations", "autonomous fund movement", "unattended live writes"],
+      "pricing": {
+        "basis": "one-time",
+        "amount_minor": 150000,
+        "currency": "USD",
+        "options": [
+          { "price_id": "price_1UV9N8LdLF8CmyxZgqBEXr4D", "type": "one_time", "amount_minor": 150000, "currency": "USD" }
+        ]
+      },
+      "delivery": { "method": "digital-delivery", "format": "workspace configuration / digital product" },
+      "required_approvals": "purchases above $100 require human gate per ERC-8004 authority stages",
+      "dispute_refund": "https://codeximmortal.com/terms#refund",
+      "evidence": {
+        "validation_status": "uncertified",
+        "source": "live Stripe catalog (acct Codex Immortal)",
+        "note": "catalog record verified live; delivery pipeline uncertified (AX-01/02/04 pending)"
+      },
+      "agent_commerce": { "acp_eligible": true, "ap2_eligible": true, "x402_eligible": false }
+    },
+    {
+      "offer_id": "offer-agentic-orchestration-module",
+      "product_id": "prod_VWBkKFVgn12lty",
+      "title": "Agentic Orchestration Module",
+      "description": "Delivered workflow build with 5 agents and 500 runs.",
+      "category": "operations",
+      "capabilities": ["workflow build", "5-agent orchestration", "500 workflow runs"],
+      "denied_capabilities": ["offensive operations", "autonomous fund movement", "unattended live writes"],
+      "pricing": {
+        "basis": "one-time",
+        "amount_minor": 150000,
+        "currency": "USD",
+        "options": [
+          { "price_id": "price_1UV9N7LdLF8CmyxZpf6mHjJX", "type": "one_time", "amount_minor": 150000, "currency": "USD" }
+        ]
+      },
+      "delivery": { "method": "digital-delivery", "format": "workspace configuration / digital product" },
+      "required_approvals": "purchases above $100 require human gate per ERC-8004 authority stages",
+      "dispute_refund": "https://codeximmortal.com/terms#refund",
+      "evidence": {
+        "validation_status": "uncertified",
+        "source": "live Stripe catalog (acct Codex Immortal)",
+        "note": "catalog record verified live; delivery pipeline uncertified (AX-01/02/04 pending)"
+      },
+      "agent_commerce": { "acp_eligible": true, "ap2_eligible": true, "x402_eligible": false }
+    },
+    {
+      "offer_id": "offer-operations-lab-module",
+      "product_id": "prod_VWBkIzyLjj4iwS",
+      "title": "Operations Lab Module",
+      "description": "Delivered lab configuration and 25 simulations.",
+      "category": "operations",
+      "capabilities": ["lab configuration", "25 mission simulations", "OODA loop setup"],
+      "denied_capabilities": ["offensive operations", "autonomous fund movement", "unattended live writes"],
+      "pricing": {
+        "basis": "one-time",
+        "amount_minor": 120000,
+        "currency": "USD",
+        "options": [
+          { "price_id": "price_1UV9N7LdLF8CmyxZuuK3ee9o", "type": "one_time", "amount_minor": 120000, "currency": "USD" }
+        ]
+      },
+      "delivery": { "method": "digital-delivery", "format": "workspace configuration / digital product" },
+      "required_approvals": "purchases above $100 require human gate per ERC-8004 authority stages",
+      "dispute_refund": "https://codeximmortal.com/terms#refund",
+      "evidence": {
+        "validation_status": "uncertified",
+        "source": "live Stripe catalog (acct Codex Immortal)",
+        "note": "catalog record verified live; delivery pipeline uncertified (AX-01/02/04 pending)"
+      },
+      "agent_commerce": { "acp_eligible": true, "ap2_eligible": true, "x402_eligible": false }
+    },
+    {
+      "offer_id": "offer-mcp-sdk-module",
+      "product_id": "prod_VWBkWRovkRRLx2",
+      "title": "MCP SDK Module",
+      "description": "Delivered SDK package and integration guide.",
+      "category": "infrastructure",
+      "capabilities": ["MCP SDK package", "integration guide", "agent tooling"],
+      "denied_capabilities": ["offensive operations", "autonomous fund movement", "unattended live writes"],
+      "pricing": {
+        "basis": "one-time",
+        "amount_minor": 75000,
+        "currency": "USD",
+        "options": [
+          { "price_id": "price_1UV9N9LdLF8CmyxZ76MuF1HM", "type": "one_time", "amount_minor": 75000, "currency": "USD" }
+        ]
+      },
+      "delivery": { "method": "digital-delivery", "format": "workspace configuration / digital product" },
+      "required_approvals": "purchases above $100 require human gate per ERC-8004 authority stages",
+      "dispute_refund": "https://codeximmortal.com/terms#refund",
+      "evidence": {
+        "validation_status": "uncertified",
+        "source": "live Stripe catalog (acct Codex Immortal)",
+        "note": "catalog record verified live; delivery pipeline uncertified (AX-01/02/04 pending)"
+      },
+      "agent_commerce": { "acp_eligible": true, "ap2_eligible": true, "x402_eligible": false }
+    },
+    {
+      "offer_id": "offer-ai-council-orchestration-module",
+      "product_id": "prod_VWBkp8DPmKk2nH",
+      "title": "AI Council Orchestration Module",
+      "description": "Delivered council configuration with 250 mission decision cycles.",
+      "category": "operations",
+      "capabilities": ["AI council configuration", "250 mission decision cycles", "governance workflow"],
+      "denied_capabilities": ["offensive operations", "autonomous fund movement", "unattended live writes"],
+      "pricing": {
+        "basis": "one-time",
+        "amount_minor": 39900,
+        "currency": "USD",
+        "options": [
+          { "price_id": "price_1UV9N6LdLF8CmyxZGxFzx4xO", "type": "one_time", "amount_minor": 39900, "currency": "USD" }
+        ]
+      },
+      "delivery": { "method": "digital-delivery", "format": "workspace configuration / digital product" },
+      "required_approvals": "purchases above $100 require human gate per ERC-8004 authority stages",
+      "dispute_refund": "https://codeximmortal.com/terms#refund",
+      "evidence": {
+        "validation_status": "uncertified",
+        "source": "live Stripe catalog (acct Codex Immortal)",
+        "note": "catalog record verified live; delivery pipeline uncertified (AX-01/02/04 pending)"
+      },
+      "agent_commerce": { "acp_eligible": true, "ap2_eligible": true, "x402_eligible": false }
+    },
+    {
+      "offer_id": "offer-core-agentic-modules-deployment-blueprint",
+      "product_id": "prod_VVx8ESbJDkTp7I",
+      "title": "Core Agentic Modules Deployment Blueprint",
+      "description": "Production-ready module implementation blueprint covering orchestration, operations, memory, and governance.",
+      "category": "operations",
+      "capabilities": ["implementation blueprint", "orchestration patterns", "memory architecture", "governance model"],
+      "denied_capabilities": ["offensive operations", "autonomous fund movement", "unattended live writes"],
+      "pricing": {
+        "basis": "subscription",
+        "amount_minor": 14900,
+        "currency": "USD",
+        "options": [
+          { "price_id": "price_1UUwBiLdLF8CmyxZCEuYAEig", "type": "recurring", "amount_minor": 14900, "currency": "USD", "offer_key": "pro-monthly", "interval": "month" },
+          { "price_id": "price_1UUxGpLdLF8CmyxZ34hquWit", "type": "one_time", "amount_minor": 50000, "currency": "USD", "offer_key": "pro-lifetime" },
+          { "price_id": "price_1UUwBiLdLF8CmyxZiEOGmPht", "type": "recurring", "amount_minor": 149000, "currency": "USD", "offer_key": "pro-annual", "interval": "year" }
+        ]
+      },
+      "delivery": { "method": "digital-delivery", "format": "workspace configuration / digital product" },
+      "required_approvals": "purchases above $100 require human gate per ERC-8004 authority stages",
+      "dispute_refund": "https://codeximmortal.com/terms#refund",
+      "evidence": {
+        "validation_status": "uncertified",
+        "source": "live Stripe catalog (acct Codex Immortal)",
+        "note": "catalog record verified live; delivery pipeline uncertified (AX-01/02/04 pending)"
+      },
+      "agent_commerce": { "acp_eligible": true, "ap2_eligible": true, "x402_eligible": false }
+    },
+    {
+      "offer_id": "offer-core-agentic-modules-starter-kit",
+      "product_id": "prod_VVx87CyuU0ta98",
+      "title": "Core Agentic Modules Starter Kit",
+      "description": "Instant digital delivery: core module map, activation checklist, and workflow starter blueprint.",
+      "category": "operations",
+      "capabilities": ["module map", "activation checklist", "workflow starter blueprint"],
+      "denied_capabilities": ["offensive operations", "autonomous fund movement", "unattended live writes"],
+      "pricing": {
+        "basis": "subscription",
+        "amount_minor": 3900,
+        "currency": "USD",
+        "options": [
+          { "price_id": "price_1UUwBhLdLF8CmyxZHhqdsdOf", "type": "recurring", "amount_minor": 3900, "currency": "USD", "offer_key": "starter-monthly", "interval": "month" },
+          { "price_id": "price_1UUxGpLdLF8CmyxZ94jnymQ6", "type": "one_time", "amount_minor": 5000, "currency": "USD", "offer_key": "starter-lifetime" },
+          { "price_id": "price_1UUwBiLdLF8CmyxZ4ySSSLBB", "type": "recurring", "amount_minor": 39000, "currency": "USD", "offer_key": "starter-annual", "interval": "year" }
+        ]
+      },
+      "delivery": { "method": "digital-delivery", "format": "workspace configuration / digital product" },
+      "required_approvals": "purchases above $100 require human gate per ERC-8004 authority stages",
+      "dispute_refund": "https://codeximmortal.com/terms#refund",
+      "evidence": {
+        "validation_status": "uncertified",
+        "source": "live Stripe catalog (acct Codex Immortal)",
+        "note": "catalog record verified live; delivery pipeline uncertified (AX-01/02/04 pending)"
+      },
+      "agent_commerce": { "acp_eligible": true, "ap2_eligible": true, "x402_eligible": false }
+    }
+  ]
+}
