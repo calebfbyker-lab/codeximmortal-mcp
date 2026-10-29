@@ -36,7 +36,7 @@ Payment links were created in Stripe live mode. Opening a link does not charge a
 
 Use your client's remote Streamable HTTP connection settings. Endpoint deployment has previously been reported live by Render; current end-to-end MCP interoperability and checkout fulfillment have not been verified. Do not assume a successful health response proves tools work.
 
-MCP wire methods are `tools/list` and `tools/call`. Catalog handlers are implemented locally; other tool handlers proxy to a separately configured gateway. Catalog JSON does not yet embed these checkout URLs; use the table or buyer guide for them. No published npm package installation is verified.
+MCP wire methods are `tools/list` and `tools/call`. Catalog handlers are implemented locally; other tool handlers proxy to a separately configured gateway. Catalog JSON (v1.2.2) embeds a `checkout_url` for each offer; the table and buyer guide mirror the same links. No published npm package installation is verified.
 
 ## Tool status
 
