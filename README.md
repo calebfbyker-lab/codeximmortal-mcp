@@ -14,29 +14,28 @@ All prices below are one-time payments in USD, not subscriptions. Scope descript
 
 | Product | Stated scope | One-time USD | Stripe checkout |
 |---|---|---:|---|
-| Core Agentic Modules Starter Kit | Core module map, activation checklist, workflow starter blueprint | $50 | [Checkout](https://buy.stripe.com/bJe3cw0yhbt59QBdiL3oA0c) |
-| AI Council Orchestration Module | Council configuration with 250 mission decision cycles | $399 | [Checkout](https://buy.stripe.com/3cIaEY4Ox68L7It3Ib3oA0d) |
-| Core Agentic Modules Deployment Blueprint | Implementation blueprint covering orchestration, operations, memory and governance | $500 | [Checkout](https://buy.stripe.com/9B63cwgxfdBdd2N0vZ3oA0m) |
-| MCP SDK Module | SDK package and integration guide | $750 | [Checkout](https://buy.stripe.com/28EaEY80Jcx92o9diL3oA0e) |
-| Operations Lab Module | Lab configuration and 25 simulations | $1,200 | [Checkout](https://buy.stripe.com/3cI7sM0yh8gTfaV4Mf3oA0f) |
-| Revenue Studio Module | Ledger and receipt-proof workspace | $1,500 | [Checkout](https://buy.stripe.com/7sYcN66WFfJlbYJ3Ib3oA0g) |
-| Agentic Orchestration Module | Workflow build with five agents and 500 runs | $1,500 | [Checkout](https://buy.stripe.com/5kQ14obcV54HbYJ2E73oA0h) |
-| Omniseal Defense Module | Security and compliance posture package | $2,400 | [Checkout](https://buy.stripe.com/00w4gAa8R54H7It92v3oA0i) |
-| Sovereign Memory Graph Module | Graph deployment and 10,000 indexed records | $2,500 | [Checkout](https://buy.stripe.com/5kQ6oI3KtfJl9QBfqT3oA0j) |
-| Bitcoin Wealth Engine Module | PSBT and multisig operations workspace | $3,000 | [Checkout](https://buy.stripe.com/8x214oftb1Sv7It92v3oA0k) |
-| Federation Consensus Module | Three-peer federation configuration | $5,000 | [Checkout](https://buy.stripe.com/14AeVegxfbt53sdemP3oA0l) |
+| AI Workflow Launch Kit | Core module map, activation checklist, workflow starter blueprint | $50 | [Checkout](https://buy.stripe.com/bJe3cw0yhbt59QBdiL3oA0c) |
+| Decision Review Workspace | Council configuration with 250 mission decision cycles | $399 | [Checkout](https://buy.stripe.com/3cIaEY4Ox68L7It3Ib3oA0d) |
+| AI Implementation Blueprint | Implementation blueprint covering orchestration, operations, memory and governance | $500 | [Checkout](https://buy.stripe.com/9B63cwgxfdBdd2N0vZ3oA0m) |
+| MCP Integration Kit | SDK package and integration guide | $750 | [Checkout](https://buy.stripe.com/28EaEY80Jcx92o9diL3oA0e) |
+| Agent Evaluation Lab | Lab configuration and 25 simulations | $1,200 | [Checkout](https://buy.stripe.com/3cI7sM0yh8gTfaV4Mf3oA0f) |
+| Revenue Operations Workspace | Ledger and receipt-proof workspace | $1,500 | [Checkout](https://buy.stripe.com/7sYcN66WFfJlbYJ3Ib3oA0g) |
+| Agent Workflow Launch | Workflow build with five agents and 500 runs | $1,500 | [Checkout](https://buy.stripe.com/5kQ14obcV54HbYJ2E73oA0h) |
+| Security Hardening Package | Security and compliance posture package | $2,400 | [Checkout](https://buy.stripe.com/00w4gAa8R54H7It92v3oA0i) |
+| Agent Knowledge Hub | Graph deployment and 10,000 indexed records | $2,500 | [Checkout](https://buy.stripe.com/5kQ6oI3KtfJl9QBfqT3oA0j) |
+| Bitcoin Transaction Controls | PSBT and multisig operations workspace | $3,000 | [Checkout](https://buy.stripe.com/8x214oftb1Sv7It92v3oA0k) |
+| Multi-Node Coordination Setup | Three-peer federation configuration | $5,000 | [Checkout](https://buy.stripe.com/14AeVegxfbt53sdemP3oA0l) |
 
-Payment links were created in Stripe live mode. Opening a link does not charge a customer; completing checkout can. Hosted payment availability is not proof that fulfillment or autonomous purchasing is implemented. The two mistakenly created Pro recurring links have been deactivated.
+Payment links were created in Stripe live mode. Opening a link does not charge a customer; completing checkout can. Hosted payment availability is not proof that fulfillment or autonomous purchasing is implemented.
 
-## MCP connection for developers and agent operators
+## Agent surfaces
 
-- Streamable HTTP endpoint: https://codeximmortal-mcp.onrender.com/mcp
-- Public catalog route: https://codeximmortal-mcp.onrender.com/api/v1/catalog.json
+- Static catalog (primary, always on): https://calebfbyker-lab.github.io/codeximmortal-mcp/catalog.json
+- Static buyer guide: https://calebfbyker-lab.github.io/codeximmortal-mcp/docs/buyer-guide.md
+- Remote MCP wire endpoint: https://codeximmortal-mcp.onrender.com/mcp
 - Health route: https://codeximmortal-mcp.onrender.com/healthz
 
-Use your client's remote Streamable HTTP connection settings. Endpoint deployment has previously been reported live by Render; current end-to-end MCP interoperability and checkout fulfillment have not been verified. Do not assume a successful health response proves tools work.
-
-MCP wire methods are `tools/list` and `tools/call`. Catalog handlers are implemented locally; other tool handlers proxy to a separately configured gateway. Catalog JSON (v1.2.2) embeds a `checkout_url` for each offer; the table and buyer guide mirror the same links. No published npm package installation is verified.
+The static surfaces are served by GitHub Pages and are always available. The MCP endpoint runs on a Render free-tier instance: it spins down when idle and may take time to wake; if it is unreachable, use the static catalog and this README. MCP wire methods are `tools/list` and `tools/call`. Catalog handlers are implemented locally; other tool handlers proxy to a separately configured gateway. Catalog JSON (v1.2.3) embeds a `checkout_url` for each offer; the table and buyer guide mirror the same links.
 
 ## Tool status
 
