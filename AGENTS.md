@@ -17,12 +17,13 @@ Never: submit payment yourself, collect or relay card data, invent product or de
 - `README.md` — product table and checkout links
 - `llms.txt` — agent-facing manifest (routes and governance summary)
 
-## Remote MCP endpoint (UNCERTIFIED)
-- Streamable HTTP: https://codeximmortal-mcp.onrender.com/mcp
-- Public catalog: https://codeximmortal-mcp.onrender.com/api/v1/catalog.json
-- Health: https://codeximmortal-mcp.onrender.com/healthz
+## Catalog and endpoint access
+
+- Static catalog (primary, always on): https://calebfbyker-lab.github.io/codeximmortal-mcp/catalog.json
+- Static buyer guide: https://calebfbyker-lab.github.io/codeximmortal-mcp/docs/buyer-guide.md
+- Remote MCP wire endpoint (UNCERTIFIED; Render free tier, may cold-start): https://codeximmortal-mcp.onrender.com/mcp
 - Wire methods: `tools/list`, `tools/call`
-- Availability is unverified; if the endpoint is unreachable, fall back to `catalog.json` and `README.md` in this repository.
+- If the MCP endpoint is unreachable or slow to wake, use the static catalog and `README.md` instead; they are always available.
 
 ## Boundaries
 - This surface is UNCERTIFIED; end-to-end interoperability is unverified.

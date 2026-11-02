@@ -15,9 +15,9 @@ Refund policy: https://codeximmortal.com/refund-policy
 
 - Catalog: https://github.com/calebfbyker-lab/codeximmortal-mcp/blob/main/catalog.json — 11 one-time offers, $49–$449 USD, checkout_url per offer
 - Agent instructions: https://github.com/calebfbyker-lab/codeximmortal-mcp/blob/main/AGENTS.md
-- Buyer guide: https://github.com/calebfbyker-lab/codeximmortal-mcp/blob/main/docs/buyer-guide.md
-- MCP manifest: mcp-manifest.json
-- Remote MCP endpoint (UNCERTIFIED, availability unverified): https://codeximmortal-mcp.onrender.com/mcp
+- Buyer guide (static): https://calebfbyker-lab.github.io/codeximmortal-mcp/docs/buyer-guide.md
+- MCP manifest: https://calebfbyker-lab.github.io/codeximmortal-mcp/mcp-manifest.json
+- Remote MCP wire endpoint (UNCERTIFIED; free-tier instance, may cold-start): https://codeximmortal-mcp.onrender.com/mcp
 
 ## Products & services
 
