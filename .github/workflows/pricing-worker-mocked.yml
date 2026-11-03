@@ -1,0 +1,50 @@
+name: Pricing worker mocked validation
+on:
+  push:
+    branches: [worker/pricing-extraction-mocked-ci]
+    paths: ['workers/pricing/**', '.github/workflows/pricing-worker-mocked.yml']
+  pull_request:
+    paths: ['workers/pricing/**', '.github/workflows/pricing-worker-mocked.yml']
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ALLOW_PAID_MODEL: 'no'
+      OPENAI_API_KEY: ''
+    defaults:
+      run:
+        working-directory: workers/pricing
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare logs
+        run: mkdir -p results
+      - name: Install isolated dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund 2>&1 | tee results/install.log
+      - name: Record dependency tree
+        run: npm ls --all > results/dependency-tree.txt
+      - name: Type check
+        run: npm run build 2>&1 | tee results/build.log
+      - name: Mocked tests
+        if: ${{ !cancelled() && steps.install.outcome != 'failure' }}
+        run: npm test 2>&1 | tee results/tests.log
+      - name: Mock contract evaluation
+        if: ${{ !cancelled() && steps.install.outcome != 'failure' }}
+        run: npm run evaluate 2>&1 | tee results/evaluate.log
+      - name: Upload logs evaluation and candidate lockfile
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pricing-worker-mock-validation
+          path: |
+            workers/pricing/results/
+            workers/pricing/package-lock.json
+          if-no-files-found: warn

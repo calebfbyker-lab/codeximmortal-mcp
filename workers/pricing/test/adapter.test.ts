@@ -1,0 +1,12 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { responsesAdapter } from '../src/adapter.js';
+const request={text:'Starter 19 USD monthly',maxOutputTokens:100},config={apiKey:'fake-test-key',model:'mock-model'};
+const mock=(data:unknown,status=200)=>(async()=>new Response(JSON.stringify(data),{status})) as typeof fetch;
+const response=(text:string)=>({status:'completed',usage:{input_tokens:10,output_tokens:5},output:[{type:'message',content:[{type:'output_text',text}]}]});
+test('parses structured output',async()=>assert.deepEqual(await responsesAdapter(config,mock(response('{"plans":[]}')))(request),{status:'completed',candidate:{plans:[]},usage:{inputTokens:10,outputTokens:5}}));
+test('malformed JSON retains usage',async()=>{const r=await responsesAdapter(config,mock(response('bad')))(request);assert.equal(r.candidate,null);assert.equal(r.usage.outputTokens,5);});
+test('maps refusal',async()=>assert.equal((await responsesAdapter(config,mock({status:'completed',usage:{input_tokens:1,output_tokens:1},output:[{type:'message',content:[{type:'refusal'}]}]}))(request)).status,'refused'));
+test('maps incomplete',async()=>assert.equal((await responsesAdapter(config,mock({status:'incomplete',usage:{input_tokens:1,output_tokens:1},output:[]}))(request)).status,'incomplete'));
+test('rejects HTTP errors without body leakage',async()=>{await assert.rejects(responsesAdapter(config,mock({secret:'do not leak'},429))(request),/provider_http_429/);});
+test('requests strict schema without storage or tools',async()=>{let body:any;const transport=(async(_u:unknown,init:any)=>{body=JSON.parse(init.body);return new Response(JSON.stringify(response('{"plans":[]}')));}) as typeof fetch;await responsesAdapter(config,transport)(request);assert.equal(body.store,false);assert.equal(body.text.format.strict,true);assert.equal(body.max_output_tokens,100);assert.equal(body.tools,undefined);});
