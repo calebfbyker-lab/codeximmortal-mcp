@@ -27,17 +27,33 @@ jobs:
           node-version: '22'
       - name: Prepare logs
         run: mkdir -p results
-      - name: Install isolated dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund 2>&1 | tee results/install.log
+      - name: Generate candidate lockfile only when missing
+        id: lock
+        run: |
+          if [ ! -f package-lock.json ]; then
+            echo 'No committed lockfile: generating an UNREVIEWED candidate.' | tee results/lockfile-status.txt
+            npm install --package-lock-only --ignore-scripts --no-audit --no-fund 2>&1 | tee results/lockfile-generation.log
+          else
+            echo 'Using committed lockfile; dependency security review is separate.' | tee results/lockfile-status.txt
+          fi
+          cp package-lock.json results/candidate-package-lock.json
+          sha256sum package-lock.json > results/lockfile.sha256
+      - name: Install from lockfile
+        id: install
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund 2>&1 | tee results/install.log
+          cmp package-lock.json results/candidate-package-lock.json
       - name: Record dependency tree
-        run: npm ls --all > results/dependency-tree.txt
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm ls --all > results/dependency-tree.txt 2>&1
       - name: Type check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run build 2>&1 | tee results/build.log
       - name: Mocked tests
-        if: ${{ !cancelled() && steps.install.outcome != 'failure' }}
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm test 2>&1 | tee results/tests.log
       - name: Mock contract evaluation
-        if: ${{ !cancelled() && steps.install.outcome != 'failure' }}
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run evaluate 2>&1 | tee results/evaluate.log
       - name: Upload logs evaluation and candidate lockfile
         if: ${{ always() }}
