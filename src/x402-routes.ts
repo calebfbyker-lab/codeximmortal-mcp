@@ -1,0 +1,140 @@
+import { Router, type RequestHandler } from "express";
+import { randomUUID } from "node:crypto";
+import { createX402Server } from "@coinbase/cdp-sdk/x402";
+import { paymentMiddlewareFromHTTPServer } from "@x402/express";
+
+export const PRICING_ROUTE = "/v1/pricing-extractions";
+
+export interface PricingResult {
+  sourceUrl: string;
+  extractedAt: string;
+  plans: Array<{
+    name: string;
+    displayedAmount: string | null;
+    currency: string | null;
+    billingInterval: string | null;
+    sourceExcerpt: string;
+  }>;
+}
+
+export interface PricingWorker {
+  // These checks must be synchronous and must not fetch remote content.
+  ready(): boolean;
+  supports(url: URL): boolean;
+  // Implement DNS/IP and redirect restrictions, byte/time limits, runtime
+  // output validation, and cancellation inside the worker. HTTPS alone
+  // is not SSRF protection. Do not expose an arbitrary-URL fetcher.
+  extract(url: string, options: {
+    requestId: string;
+    signal: AbortSignal;
+  }): Promise<PricingResult>;
+}
+
+function required(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`Missing ${name}`);
+  return value;
+}
+
+// Mount at the application root AFTER express.json({ limit: "8kb" }).
+// No listener, wallet provisioning, or application mutation occurs on import.
+// This module is a testnet integration scaffold, not production order recovery.
+export async function createX402PricingRouter(worker: PricingWorker) {
+  const environment = process.env.X402_ENVIRONMENT ?? "development";
+  if (environment !== "development" && environment !== "production") {
+    throw new Error("X402_ENVIRONMENT must be development or production");
+  }
+  if (environment === "production" &&
+      process.env.X402_MAINNET_APPROVED !== "true") {
+    throw new Error("Mainnet configuration requires operator approval");
+  }
+  required("CDP_API_KEY_ID");
+  required("CDP_API_KEY_SECRET");
+  const payTo = required("X402_PAY_TO");
+  if (!/^0x[0-9a-fA-F]{40}$/.test(payTo) || /^0x0{40}$/i.test(payTo)) {
+    throw new Error("X402_PAY_TO must be a nonzero EVM address");
+  }
+  const price = required("X402_PRICE");
+  if (!/^\$\d+\.\d{2}$/.test(price) ||
+      BigInt(price.slice(1).replace(".", "")) <= 0n) {
+    throw new Error("X402_PRICE must be positive, for example $0.05");
+  }
+  const network = environment === "production"
+    ? "eip155:8453" as const : "eip155:84532" as const;
+
+  const server = await createX402Server({
+    environment,
+    payToConfig: { type: "address", evm: payTo as `0x${string}` },
+    routes: {
+      [`POST ${PRICING_ROUTE}`]: {
+        price,
+        networks: [network],
+        description: "Extract software pricing-plan names, displayed amounts, " +
+          "currencies, billing intervals, and evidence excerpts from supported " +
+          "public HTTPS pages. Unknown values are null. Static pages only; " +
+          "no monitoring or effective-price calculation.",
+      },
+    },
+  });
+
+  const router = Router({ caseSensitive: true, strict: true });
+  const validate: RequestHandler = (req, res, next) => {
+    try {
+      const requestId = randomUUID();
+      res.locals.x402RequestId = requestId;
+      res.setHeader("X-Request-ID", requestId);
+      res.setHeader("Cache-Control", "no-store");
+      if (!req.is("application/json")) {
+        res.status(415).json({ error: "application_json_required", requestId });
+        return;
+      }
+      const body: unknown = req.body;
+      if (typeof body !== "object" || body === null || Array.isArray(body) ||
+          Object.keys(body).length !== 1 || !("url" in body) ||
+          typeof body.url !== "string" || body.url.length > 2048) {
+        res.status(400).json({ error: "invalid_body", requestId });
+        return;
+      }
+      let url: URL;
+      try { url = new URL(body.url); }
+      catch {
+        res.status(400).json({ error: "invalid_url", requestId });
+        return;
+      }
+      if (url.protocol !== "https:" || url.username || url.password ||
+          url.hash || (url.port && url.port !== "443")) {
+        res.status(400).json({ error: "unsupported_url", requestId });
+        return;
+      }
+      if (!worker.ready()) {
+        res.status(503).json({ error: "worker_unavailable", requestId });
+        return;
+      }
+      if (!worker.supports(url)) {
+        res.status(422).json({ error: "unsupported_page", requestId });
+        return;
+      }
+      res.locals.x402InputUrl = url.href;
+      next();
+    } catch (error) { next(error); }
+  };
+
+  // Validation and capability checks precede the payment middleware.
+  router.post(PRICING_ROUTE, validate);
+  router.use(paymentMiddlewareFromHTTPServer(server));
+  router.post(PRICING_ROUTE, async (_req, res, next) => {
+    try {
+      const requestId = res.locals.x402RequestId as string;
+      const result = await worker.extract(res.locals.x402InputUrl as string, {
+        requestId,
+        signal: AbortSignal.timeout(20_000),
+      });
+      res.status(200).json({ ...result, requestId });
+    } catch (error) {
+      // Delegate sanitized responses to the application's error handler.
+      // No automatic refund, settlement reconciliation, or retry guarantee.
+      next(error);
+    }
+  });
+  return router;
+}
