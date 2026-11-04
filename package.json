@@ -29,6 +29,12 @@
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   },
+  "overrides": {
+    "@x402/core": "2.25.0",
+    "@x402/evm": "2.25.0",
+    "@x402/extensions": "2.25.0",
+    "@x402/svm": "2.25.0"
+  },
   "keywords": ["mcp", "model-context-protocol", "agentic-ai", "security", "threat-hunting", "enterprise-ai"],
   "repository": { "type": "git", "url": "git+https://github.com/calebfbyker-lab/codeximmortal-mcp.git" }
 }
