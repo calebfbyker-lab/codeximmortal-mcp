@@ -145,8 +145,10 @@ export async function createX402PricingRouter(worker: PricingWorker) {
         "currencies, billing intervals, and evidence excerpts from supported " +
         "public HTTPS pages. Unknown values are null. Static pages only; " +
         "no monitoring or effective-price calculation.",
+      // At @x402/extensions 2.25.0 the HTTP method is derived from the
+      // route key, not passed here (the type omits `method`); bodyType is
+      // the discriminator for body endpoints.
       extensions: declareDiscoveryExtension({
-        method: "POST",
         bodyType: "json",
         input: { url: exampleUrl },
         inputSchema: {
