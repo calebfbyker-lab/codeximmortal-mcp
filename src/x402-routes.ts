@@ -4,6 +4,10 @@ import { createCdpFacilitatorClient } from "@coinbase/cdp-sdk/x402";
 import { paymentMiddleware } from "@x402/express";
 import { x402ResourceServer } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
+import {
+  declareDiscoveryExtension,
+  bazaarResourceServerExtension,
+} from "@x402/extensions";
 
 export const PRICING_ROUTE = "/v1/pricing-extractions";
 
@@ -73,7 +77,16 @@ export async function createX402PricingRouter(worker: PricingWorker) {
   // cannot occur on this path.
   const facilitator = createCdpFacilitatorClient();
   const server = new x402ResourceServer(facilitator)
-    .register(network, new ExactEvmScheme());
+    .register(network, new ExactEvmScheme())
+    // Bazaar discovery: without this extension the endpoint is payable
+    // but invisible to Bazaar search and never indexed.
+    .registerExtension(bazaarResourceServerExtension);
+
+  // Example shown to buyer agents in Bazaar listings. Must be a URL the
+  // worker actually supports; PRICING_EXAMPLE_URL should match one entry of
+  // PRICING_APPROVED_URLS.
+  const exampleUrl = process.env.PRICING_EXAMPLE_URL ??
+    "https://example.com/pricing";
 
   const router = Router({ caseSensitive: true, strict: true });
   const validate: RequestHandler = (req, res, next) => {
@@ -132,6 +145,42 @@ export async function createX402PricingRouter(worker: PricingWorker) {
         "currencies, billing intervals, and evidence excerpts from supported " +
         "public HTTPS pages. Unknown values are null. Static pages only; " +
         "no monitoring or effective-price calculation.",
+      extensions: declareDiscoveryExtension({
+        method: "POST",
+        bodyType: "json",
+        input: { url: exampleUrl },
+        inputSchema: {
+          type: "object",
+          additionalProperties: false,
+          required: ["url"],
+          properties: {
+            url: {
+              type: "string",
+              format: "uri",
+              maxLength: 2048,
+              description:
+                "Supported public HTTPS software pricing-page URL. " +
+                "No credentials, login-protected pages, or private-network URLs.",
+            },
+          },
+        },
+        output: {
+          example: {
+            requestId: "example-request-id",
+            sourceUrl: exampleUrl,
+            extractedAt: "2026-11-05T00:00:00Z",
+            plans: [
+              {
+                name: "Example plan",
+                displayedAmount: "29",
+                currency: "USD",
+                billingInterval: null,
+                sourceExcerpt: "Example plan — USD 29 per month",
+              },
+            ],
+          },
+        },
+      }),
     },
   }, server));
   router.post(PRICING_ROUTE, async (_req, res, next) => {
