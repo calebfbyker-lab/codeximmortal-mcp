@@ -1,0 +1,67 @@
+name: Promo monitor
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  uptime:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/10 * * * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check service health
+        run: node scripts/promo/uptime-check.mjs
+        env:
+          SERVICE_URL: https://codeximmortal-mcp.onrender.com
+      - name: Open outage issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create promo-monitor --color d73a4a || true
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --label promo-monitor --state open --json number --jq 'length')
+          if [ "$existing" = "0" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" \
+              --title "Promo monitor: uptime check failed" \
+              --label promo-monitor \
+              --body "The 10-minute /healthz check failed twice for https://codeximmortal-mcp.onrender.com. Failing run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" || true
+          fi
+
+  ranking:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 6 * * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Record Bazaar ranking snapshot
+        run: |
+          mkdir -p docs/promo-metrics
+          node scripts/promo/bazaar-ranking.mjs >> docs/promo-metrics/bazaar-ranking.jsonl
+          tail -n 5 docs/promo-metrics/bazaar-ranking.jsonl
+      - name: Commit snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/promo-metrics/bazaar-ranking.jsonl
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "[skip ci] promo: daily bazaar ranking snapshot"
+            git push
+          fi
