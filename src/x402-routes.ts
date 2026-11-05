@@ -1,7 +1,9 @@
 import { Router, type RequestHandler } from "express";
 import { randomUUID } from "node:crypto";
-import { createX402Server } from "@coinbase/cdp-sdk/x402";
-import { paymentMiddlewareFromHTTPServer } from "@x402/express";
+import { createCdpFacilitatorClient } from "@coinbase/cdp-sdk/x402";
+import { paymentMiddleware } from "@x402/express";
+import { x402ResourceServer } from "@x402/core/server";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
 
 export const PRICING_ROUTE = "/v1/pricing-extractions";
 
@@ -62,20 +64,16 @@ export async function createX402PricingRouter(worker: PricingWorker) {
   const network = environment === "production"
     ? "eip155:8453" as const : "eip155:84532" as const;
 
-  const server = await createX402Server({
-    environment,
-    payToConfig: { type: "address", evm: payTo as `0x${string}` },
-    routes: {
-      [`POST ${PRICING_ROUTE}`]: {
-        price,
-        networks: [network],
-        description: "Extract software pricing-plan names, displayed amounts, " +
-          "currencies, billing intervals, and evidence excerpts from supported " +
-          "public HTTPS pages. Unknown values are null. Static pages only; " +
-          "no monitoring or effective-price calculation.",
-      },
-    },
-  });
+  // Coinbase's documented drop-in facilitator integration: the resource
+  // server, payment scheme, and middleware all come from the standalone
+  // @x402 packages. Only the facilitator client object crosses from
+  // @coinbase/cdp-sdk, and it satisfies @x402/core's facilitator interface
+  // structurally. No cdp-sdk class identity is assigned to an @x402/express
+  // parameter, so the nominal-type mismatch that failed previous builds
+  // cannot occur on this path.
+  const facilitator = createCdpFacilitatorClient();
+  const server = new x402ResourceServer(facilitator)
+    .register(network, new ExactEvmScheme());
 
   const router = Router({ caseSensitive: true, strict: true });
   const validate: RequestHandler = (req, res, next) => {
@@ -121,7 +119,21 @@ export async function createX402PricingRouter(worker: PricingWorker) {
 
   // Validation and capability checks precede the payment middleware.
   router.post(PRICING_ROUTE, validate);
-  router.use(paymentMiddlewareFromHTTPServer(server));
+  router.use(paymentMiddleware({
+    [`POST ${PRICING_ROUTE}`]: {
+      accepts: [{
+        scheme: "exact",
+        price,
+        network,
+        payTo: payTo as `0x${string}`,
+      }],
+      description:
+        "Extract software pricing-plan names, displayed amounts, " +
+        "currencies, billing intervals, and evidence excerpts from supported " +
+        "public HTTPS pages. Unknown values are null. Static pages only; " +
+        "no monitoring or effective-price calculation.",
+    },
+  }, server));
   router.post(PRICING_ROUTE, async (_req, res, next) => {
     try {
       const requestId = res.locals.x402RequestId as string;
