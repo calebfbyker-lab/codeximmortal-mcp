@@ -21,5 +21,26 @@ export function findProjectFile(fileName: string): string {
 
 export function loadTools(): ToolDef[] {
   const manifest = JSON.parse(findProjectFile("mcp-manifest.json"));
-  return manifest.tools as ToolDef[];
+  const raw = manifest.tools as Array<Record<string, unknown>>;
+  if (!Array.isArray(raw)) {
+    throw new Error("mcp-manifest.json: 'tools' must be an array");
+  }
+  return raw.map((tool) => {
+    if (typeof tool.name !== "string" || typeof tool.description !== "string") {
+      throw new Error("mcp-manifest.json: each tool needs name and description");
+    }
+    const inputSchema =
+      (tool.inputSchema ?? tool.input_schema) as Record<string, unknown> | undefined;
+    if (!inputSchema || typeof inputSchema !== "object") {
+      throw new Error(`mcp-manifest.json: tool ${tool.name} is missing inputSchema`);
+    }
+    return {
+      name: tool.name,
+      description: tool.description,
+      inputSchema,
+      ...(tool.annotations
+        ? { annotations: tool.annotations as Record<string, unknown> }
+        : {}),
+    };
+  });
 }
