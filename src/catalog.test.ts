@@ -4,9 +4,9 @@ import { readFileSync } from "node:fs";
 const catalog = JSON.parse(readFileSync("catalog.json", "utf8"));
 
 describe("catalog", () => {
-  it("has 11 storefront offers with valid one-time Stripe price options", () => {
+  it("has 12 storefront offers with valid one-time Stripe price options", () => {
     expect(Array.isArray(catalog.offers)).toBe(true);
-    expect(catalog.offers).toHaveLength(11);
+    expect(catalog.offers).toHaveLength(12);
 
     const offerIds = new Set<string>();
     const productIds = new Set<string>();
