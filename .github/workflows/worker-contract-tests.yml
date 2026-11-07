@@ -1,0 +1,30 @@
+name: Worker contract tests
+
+on:
+  push:
+    branches: [feat/web-to-json-worker-contract]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      X402_ENABLED: 'false'
+      PRICING_APPROVED_URLS: '[]'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run full test suite
+        run: npm test
+      - name: Compile TypeScript
+        if: ${{ !cancelled() && success() || !cancelled() && failure() }}
+        run: npm run build
