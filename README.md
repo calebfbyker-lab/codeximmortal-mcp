@@ -54,7 +54,14 @@ UNCERTIFIED. CI-059 dependency is PROVISIONAL; CI-043 status is Active according
 
 ## Distribution
 
-Directory submission and acceptance are not confirmed. Share the buyer guide and MCP connection URL with relevant developers and agent operators; do not represent a directory listing as already published. Profile and educational-post copy is provided in the buyer guide for separate review.
+Published in the official MCP Registry as `io.github.calebfbyker-lab/codeximmortal`, version `1.1.0`. The registry response checked on November 7, 2026 reports status `active`, `isLatest: true`, and publication at `2026-11-07T15:03:51.99961Z`.
+
+Registry lookup:
+https://registry.modelcontextprotocol.io/v0/servers?search=codeximmortal
+
+The live remote endpoint passed MCP initialization and `tools/list`, returning all six advertised tools on November 7, 2026. End-to-end `tools/call` verification remains pending. Registry publication is a discoverability milestone, not security certification, government endorsement, or verification of tool execution or payment functionality.
+
+Share the buyer guide and MCP connection URL with relevant developers and agent operators. Profile and educational-post copy is provided in the buyer guide for separate review.
 
 Platform: https://codeximmortal.com
 Repository: https://github.com/calebfbyker-lab/codeximmortal-mcp
