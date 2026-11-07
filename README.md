@@ -8,25 +8,27 @@ Ask your agent to inspect the CodexImmortal catalog, compare the products with y
 
 [Buyer guide](docs/buyer-guide.md) | [Machine-readable catalog](catalog.json)
 
-## Products and hosted checkout
+## Products and storefront checkout
+
+This MCP server exposes the CodexImmortal storefront catalog; it is not a separate product catalog. The table below reflects catalog v1.2.4 and its $49–$449 pricing. Links open storefront product pages, where server-priced checkout is offered; they are not direct hosted Stripe payment links.
 
 All prices below are one-time payments in USD, not subscriptions. Scope descriptions are merchant catalog descriptions, not independent verification of delivery. Confirm license, fulfillment, support, refund terms and any applicable tax before paying. One-time payment does not promise lifetime access or updates.
 
-| Product | Stated scope | One-time USD | Stripe checkout |
+| Product | Stated scope | One-time USD | Storefront product page |
 |---|---|---:|---|
-| AI Workflow Launch Kit | Core module map, activation checklist, workflow starter blueprint | $50 | [Checkout](https://buy.stripe.com/bJe3cw0yhbt59QBdiL3oA0c) |
-| Decision Review Workspace | Council configuration with 250 mission decision cycles | $399 | [Checkout](https://buy.stripe.com/3cIaEY4Ox68L7It3Ib3oA0d) |
-| AI Implementation Blueprint | Implementation blueprint covering orchestration, operations, memory and governance | $500 | [Checkout](https://buy.stripe.com/9B63cwgxfdBdd2N0vZ3oA0m) |
-| MCP Integration Kit | SDK package and integration guide | $750 | [Checkout](https://buy.stripe.com/28EaEY80Jcx92o9diL3oA0e) |
-| Agent Evaluation Lab | Lab configuration and 25 simulations | $1,200 | [Checkout](https://buy.stripe.com/3cI7sM0yh8gTfaV4Mf3oA0f) |
-| Revenue Operations Workspace | Ledger and receipt-proof workspace | $1,500 | [Checkout](https://buy.stripe.com/7sYcN66WFfJlbYJ3Ib3oA0g) |
-| Agent Workflow Launch | Workflow build with five agents and 500 runs | $1,500 | [Checkout](https://buy.stripe.com/5kQ14obcV54HbYJ2E73oA0h) |
-| Security Hardening Package | Security and compliance posture package | $2,400 | [Checkout](https://buy.stripe.com/00w4gAa8R54H7It92v3oA0i) |
-| Agent Knowledge Hub | Graph deployment and 10,000 indexed records | $2,500 | [Checkout](https://buy.stripe.com/5kQ6oI3KtfJl9QBfqT3oA0j) |
-| Bitcoin Transaction Controls | PSBT and multisig operations workspace | $3,000 | [Checkout](https://buy.stripe.com/8x214oftb1Sv7It92v3oA0k) |
-| Multi-Node Coordination Setup | Three-peer federation configuration | $5,000 | [Checkout](https://buy.stripe.com/14AeVegxfbt53sdemP3oA0l) |
+| AI Workflow Launch Kit | Core module map, activation checklist, workflow starter blueprint | $49 | [View product](https://codeximmortal.com/products/starter-kit) |
+| Decision Review Workspace | Council configuration with 250 decision cycles | $199 | [View product](https://codeximmortal.com/products/ai-council-orchestration) |
+| AI Implementation Blueprint | Implementation blueprint covering orchestration, operations, memory and governance | $149 | [View product](https://codeximmortal.com/products/deployment-blueprint) |
+| MCP Integration Kit | SDK package and integration guide | $249 | [View product](https://codeximmortal.com/products/mcp-sdk) |
+| Agent Evaluation Lab | Lab configuration and 25 evaluations | $249 | [View product](https://codeximmortal.com/products/operations-lab) |
+| Revenue Operations Workspace | Ledger and receipt-proof workspace | $299 | [View product](https://codeximmortal.com/products/revenue-studio) |
+| Agent Workflow Launch | Workflow build with five agents and 500 runs | $349 | [View product](https://codeximmortal.com/products/agentic-orchestration) |
+| Security Hardening Package | Security and compliance posture package | $399 | [View product](https://codeximmortal.com/products/omniseal-defense) |
+| Agent Knowledge Hub | Graph deployment and 10,000 indexed records | $349 | [View product](https://codeximmortal.com/products/sovereign-memory-graph) |
+| Bitcoin Transaction Controls | PSBT and multisig operations workspace | $399 | [View product](https://codeximmortal.com/products/bitcoin-wealth-engine) |
+| Multi-Node Coordination Setup | Three-peer federation configuration | $449 | [View product](https://codeximmortal.com/products/federation-consensus) |
 
-Payment links were created in Stripe live mode. Opening a link does not charge a customer; completing checkout can. Hosted payment availability is not proof that fulfillment or autonomous purchasing is implemented.
+The prior $50–$5,000 catalog snapshot and its hosted buy.stripe.com links are retired from the current catalog. This documentation update does not deactivate any legacy Stripe links; any still-active legacy links require an owner audit in Stripe before deactivation. Opening a product page does not charge a customer; completing checkout can. Checkout availability is not proof that fulfillment or autonomous purchasing is implemented.
 
 ## Agent surfaces
 
@@ -35,22 +37,24 @@ Payment links were created in Stripe live mode. Opening a link does not charge a
 - Remote MCP wire endpoint: https://codeximmortal-mcp.onrender.com/mcp
 - Health route: https://codeximmortal-mcp.onrender.com/healthz
 
-The static surfaces are served by GitHub Pages and are always available. The MCP endpoint runs on a Render free-tier instance: it spins down when idle and may take time to wake; if it is unreachable, use the static catalog and this README. MCP wire methods are `tools/list` and `tools/call`. Catalog handlers are implemented locally; other tool handlers proxy to a separately configured gateway. Catalog JSON (v1.2.3) embeds a `checkout_url` for each offer; the table and buyer guide mirror the same links.
+The static surfaces are served by GitHub Pages and are always available. The MCP endpoint runs on a Render free-tier instance: it spins down when idle and may take time to wake; if it is unreachable, use the static catalog and this README. MCP wire methods are `tools/list` and `tools/call`. Catalog handlers are implemented locally; other tool handlers proxy to a separately configured gateway. Catalog JSON (v1.2.4) embeds a storefront product-page `checkout_url` for each offer; the table above mirrors those links. The buyer guide is a separate document and has not been reverified for catalog alignment in this update.
 
 ## Tool status
 
 | Tool | Implementation status |
 |---|---|
-| codex_catalog_list | Local catalog handler; end-to-end verification pending |
+| codex_catalog_list | Live end-to-end tools/call verified on November 7, 2026 with category=all; returned catalog v1.2.4 with 11 offers and no MCP tool error |
 | codex_catalog_get_product | Local product handler; end-to-end verification pending |
 | codex_quote_request | Gateway-dependent; not verified operational |
 | codex_attestation_verify | Gateway-dependent; not verified operational |
 | codex_scan_request | Gateway-dependent; not verified operational |
 | codex_purchase_initiate | Gateway-dependent; no verified autonomous live payment execution |
 
+The catalog-list test verifies retrieval for the tested request, not every category filter, checkout execution, fulfillment, or merchant claims.
+
 ## Governance and release status
 
-UNCERTIFIED. CI-059 dependency is PROVISIONAL; CI-043 status is Active according to project instructions, not a fresh registry audit. No payment credentials belong in this repository or agent prompts. Automated financial execution remains disabled; hosted Stripe links are separate live checkout surfaces. This repository does not establish AP2, ACP, x402 or A2A runtime compatibility, government authorization, security certification, or guaranteed revenue.
+UNCERTIFIED. CI-059 dependency is PROVISIONAL; CI-043 status is Active according to project instructions, not a fresh registry audit. No payment credentials belong in this repository or agent prompts. Automated financial execution remains disabled; storefront checkout is a separate payment surface. This repository does not establish AP2, ACP, x402 or A2A runtime compatibility, government authorization, security certification, or guaranteed revenue.
 
 ## Distribution
 
@@ -59,7 +63,7 @@ Published in the official MCP Registry as `io.github.calebfbyker-lab/codeximmort
 Registry lookup:
 https://registry.modelcontextprotocol.io/v0/servers?search=codeximmortal
 
-The live remote endpoint passed MCP initialization and `tools/list`, returning all six advertised tools on November 7, 2026. End-to-end `tools/call` verification remains pending. Registry publication is a discoverability milestone, not security certification, government endorsement, or verification of tool execution or payment functionality.
+The live remote endpoint passed MCP initialization and `tools/list`, returning all six advertised tools on November 7, 2026. A subsequent `tools/call` to `codex_catalog_list` with `category: all` returned catalog v1.2.4 with 11 offers and no MCP tool error. Other tool invocations remain unverified. Registry publication is a discoverability milestone, not security certification, government endorsement, or verification of payment functionality.
 
 Share the buyer guide and MCP connection URL with relevant developers and agent operators. Profile and educational-post copy is provided in the buyer guide for separate review.
 
