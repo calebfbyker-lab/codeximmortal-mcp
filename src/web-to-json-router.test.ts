@@ -42,12 +42,43 @@ describe("prepaid Render delivery with mocked upstream", () => {
   it.each([{ url: input.url }, { ...input, units: 50 }, { ...input, api_key: "secret" }, { ...input, url: "http://example.com" }, { ...input, url: "https://user:pass@example.com" }])("rejects invalid extraction input %j", async body => {
     const f = await fixture(); expect((await f.call("/extractions", body)).status).toBe(400); expect(f.upstream).not.toHaveBeenCalled();
   });
-  it("maps job lookup and ignores unapproved forwarding headers", async () => {
-    const f = await fixture(); const response = await clientFetch(f.base + "/jobs/job-123?origin=https://evil.example", { headers: { authorization: KEY, "x-base44-app-url": "https://evil.example" } });
-    expect(response.status).toBe(200); const [url, init] = f.upstream.mock.calls[0]; expect(String(url)).toBe(APPROVED_BACKEND_ORIGIN + "/functions/web_to_json_job"); expect(JSON.parse(init?.body as string)).toEqual({ id: "job-123" }); expect(init?.headers).not.toHaveProperty("x-base44-app-url");
+  it.each(["GET", "POST"] as const)("maps %s balance lookup to upstream GET without a body", async method => {
+    const result = { balance: 50, granted_total: 50, consumed_total: 0, jobs: [] };
+    const f = await fixture(async () => json(result));
+    const response = method === "GET" ? await clientFetch(f.base + "/balance", { headers: { authorization: KEY } }) : await f.call("/balance");
+    expect(response.status).toBe(200); expect(await response.json()).toEqual(result); expect(f.upstream).toHaveBeenCalledTimes(1);
+    const [url, init] = f.upstream.mock.calls[0];
+    expect(String(url)).toBe(APPROVED_BACKEND_ORIGIN + "/functions/web_to_json_balance"); expect(init?.method).toBe("GET"); expect(init?.body).toBeUndefined(); expect(init?.redirect).toBe("error");
+    expect(init?.headers).toEqual({ accept: "application/json", "content-type": "application/json", authorization: KEY }); expect(response.headers.get("cache-control")).toBe("no-store");
   });
-  it("exchanges a delivery token without forwarding bearer auth", async () => {
-    const f = await fixture(async () => json({ api_key: "mock-only", balance: 50 }, 201)); expect((await f.call("/access", { token: "a".repeat(32) }, null)).status).toBe(201); expect(f.upstream.mock.calls[0][1]?.headers).not.toHaveProperty("authorization");
+  it.each(["GET", "POST"] as const)("maps %s job lookup to upstream GET and ignores unapproved forwarding data", async method => {
+    const result = { job_id: "job-123", status: "completed", charged_units: 1, result: { plans: [] } };
+    const f = await fixture(async () => json(result));
+    const headers = { authorization: KEY, "x-base44-app-url": "https://evil.example" };
+    const response = method === "GET"
+      ? await clientFetch(f.base + "/jobs/job-123?origin=https://evil.example", { headers })
+      : await clientFetch(f.base + "/jobs", { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ id: "job-123" }) });
+    expect(response.status).toBe(200); expect(await response.json()).toEqual(result); expect(f.upstream).toHaveBeenCalledTimes(1);
+    const [target, init] = f.upstream.mock.calls[0]; const url = new URL(String(target));
+    expect(url.origin).toBe(APPROVED_BACKEND_ORIGIN); expect(url.pathname).toBe("/functions/web_to_json_job"); expect([...url.searchParams.entries()]).toEqual([["id", "job-123"]]);
+    expect(init?.method).toBe("GET"); expect(init?.body).toBeUndefined(); expect(init?.redirect).toBe("error"); expect(init?.headers).toEqual({ accept: "application/json", "content-type": "application/json", authorization: KEY }); expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+  it("exchanges a delivery token via POST without forwarding bearer auth", async () => {
+    const payload = { token: "a".repeat(32), rotate: false };
+    const f = await fixture(async () => json({ api_key: "mock-only", balance: 50 }, 201)); expect((await f.call("/access", payload, null)).status).toBe(201);
+    expect(f.upstream).toHaveBeenCalledTimes(1); const [url, init] = f.upstream.mock.calls[0];
+    expect(String(url)).toBe(APPROVED_BACKEND_ORIGIN + "/functions/web_to_json_access"); expect(init?.method).toBe("POST"); expect(JSON.parse(init?.body as string)).toEqual(payload); expect(init?.headers).not.toHaveProperty("authorization");
+  });
+  it.each(["GET", "POST"] as const)("preserves job 404 for %s lookup without adding data", async method => {
+    const f = await fixture(async () => json({ error: "Not found" }, 404));
+    const response = method === "GET" ? await clientFetch(f.base + "/jobs/job-other-buyer", { headers: { authorization: KEY } }) : await f.call("/jobs", { id: "job-other-buyer" });
+    expect(response.status).toBe(404); expect(await response.json()).toEqual({ error: "Not found" }); expect(f.upstream).toHaveBeenCalledTimes(1); expect(f.upstream.mock.calls[0][1]?.method).toBe("GET");
+  });
+  it.each([{ path: "/balance", body: { extra: true } }, { path: "/jobs", body: { id: "job-123", extra: true } }])("rejects unexpected POST fields on $path", async ({ path, body }) => {
+    const f = await fixture(); expect((await f.call(path, body)).status).toBe(400); expect(f.upstream).not.toHaveBeenCalled();
+  });
+  it.each(["/balance", "/jobs/job-123"])("requires bearer authentication for GET %s", async path => {
+    const f = await fixture(); expect((await clientFetch(f.base + path)).status).toBe(401); expect(f.upstream).not.toHaveBeenCalled();
   });
   it.each([401, 402, 404, 409, 429])("preserves upstream status %s", async status => {
     const f = await fixture(async () => json({ error: "fixture" }, status)); const response = await f.call("/balance"); expect(response.status).toBe(status); expect(await response.json()).toEqual({ error: "fixture" });

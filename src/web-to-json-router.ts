@@ -105,8 +105,12 @@ export function createWebToJsonRouter(options: { backendOrigin?: string; fetchIm
             timer = setTimeout(() => { timedOut = true; controller.abort(); reject(new Error("timeout")); }, 30_000);
           });
           const work = async () => {
-            const upstream = await request(new URL("/functions/" + PATHS[operation], APPROVED_BACKEND_ORIGIN), {
-              method: "POST", redirect: "error", headers, body: JSON.stringify(payload), signal: controller.signal,
+            const upstreamUrl = new URL("/functions/" + PATHS[operation], APPROVED_BACKEND_ORIGIN);
+            const readOnly = operation === "balance" || operation === "job";
+            if (operation === "job") upstreamUrl.searchParams.set("id", String(payload.id));
+            const upstream = await request(upstreamUrl, {
+              method: readOnly ? "GET" : "POST", redirect: "error", headers,
+              ...(readOnly ? {} : { body: JSON.stringify(payload) }), signal: controller.signal,
             });
             if ((upstream.status >= 300 && upstream.status < 400) || upstream.status >= 500) {
               await upstream.body?.cancel().catch(() => undefined); throw new Error("upstream_failure");

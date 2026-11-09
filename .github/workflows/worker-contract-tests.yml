@@ -2,7 +2,7 @@ name: Worker contract tests
 
 on:
   push:
-    branches: [feat/web-to-json-worker-contract]
+    branches: [feat/web-to-json-worker-contract, fix/web-to-json-upstream-get]
 
 permissions:
   contents: read
