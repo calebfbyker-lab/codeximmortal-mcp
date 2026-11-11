@@ -8,8 +8,26 @@ export function validateEvidence(value: unknown): Evidence {
   if (!pattern.test(source)) throw new Error("evidence_token_missing");
   return { text: source, token };
 }
+
+// Standalone numeric expressions, including thousands grouping and signs.
+const NUMBER_PATTERN = /-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:\.\d+)?/g;
+
+/**
+ * Numeric evidence requires a complete standalone number in the source text
+ * whose value equals the claimed amount. A bare substring match cannot prove
+ * this: "10" inside "$10,000" or "-10" must not validate amount 10.
+ */
 export function validateAmountEvidence(amount: number, value: unknown): Evidence {
-  const evidence = validateEvidence(value);
-  if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(evidence.token) || Number(evidence.token) !== amount) throw new Error("amount_evidence_mismatch");
-  return evidence;
+  const v = object(value, ["text", "token"]);
+  const source = text(v.text, 16384), token = text(v.token, 512);
+  if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(token) || Number(token) !== amount) {
+    throw new Error("amount_evidence_mismatch");
+  }
+  const candidates = source.match(NUMBER_PATTERN) ?? [];
+  const matched = candidates.some(candidate => {
+    const parsed = Number(candidate.replace(/,/g, ""));
+    return Number.isFinite(parsed) && parsed === amount;
+  });
+  if (!matched) throw new Error("amount_evidence_mismatch");
+  return { text: source, token };
 }

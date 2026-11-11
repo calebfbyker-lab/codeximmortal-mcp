@@ -108,7 +108,8 @@ describe.runIf(Boolean(databaseUrl))("PostgreSQL two-buyer isolation (synthetic 
     expect(result).not.toBeNull();
     expect(result!.after.completeCoverageVerified).toBe(false);
     expect(compareSnapshots(result!.before.snapshot, result!.after.snapshot,
-      { afterCompleteTrusted: result!.after.completeCoverageVerified })
+      { beforeCompleteTrusted: result!.before.completeCoverageVerified,
+        afterCompleteTrusted: result!.after.completeCoverageVerified })
       .map(change => change.kind)).toEqual(["price_changed"]);
   });
   it("enforces duplicate IDs per buyer in PostgreSQL", async () => {

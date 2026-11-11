@@ -42,8 +42,12 @@ app.post("/mcp", async (req, res) => {
     await server.connect(transport);
     await transport.handleRequest(req, res, req.body);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    res.status(500).json({ jsonrpc: "2.0", error: { code: -32603, message } });
+    // Redacted infrastructure failure; never expose transport exception text.
+    console.error(JSON.stringify({
+      event: "mcp_request_failed",
+      errorType: err instanceof Error ? err.name : "Unknown",
+    }));
+    res.status(500).json({ jsonrpc: "2.0", error: { code: -32603, message: "mcp_request_failed" } });
   }
 });
 

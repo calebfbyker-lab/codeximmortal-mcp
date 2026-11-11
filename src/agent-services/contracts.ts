@@ -2,7 +2,7 @@ export type Coverage = "partial" | "complete";
 export interface Evidence { text: string; token: string }
 export interface Plan { id: string; name: string; amount: number | null; currency: string; interval: string; evidence: Evidence | null }
 export interface Snapshot { id: string; sourceUrl: string; capturedAt: string; coverage: Coverage; plans: Plan[] }
-export interface Comparison { planId: string; kind: "plan_added" | "plan_removed" | "plan_not_observed" | "price_unavailable" | "price_changed" | "terms_changed"; before: Plan | null; after: Plan | null }
+export interface Comparison { planId: string; kind: "plan_added" | "plan_first_observed" | "plan_removed" | "plan_not_observed" | "price_unavailable" | "price_changed" | "terms_changed"; before: Plan | null; after: Plan | null }
 export function object(value: unknown, keys: readonly string[]): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("invalid_object");
   const result = value as Record<string, unknown>;

@@ -9,4 +9,8 @@ describe("synthetic snapshot validation", () => {
   it("rejects duplicate plans", () => { const v = sample(); v.plans.push(v.plans[0]); expect(() => validateSnapshot(v)).toThrow("duplicate_plan_id"); });
   it("rejects empty complete snapshots", () => expect(() => validateSnapshot({ ...sample(), coverage: "complete", plans: [] })).toThrow("invalid_plans"));
   it("rejects invalid URL schemes", () => expect(() => validateSnapshot({ ...sample(), sourceUrl: "file:///etc/passwd" })).toThrow("invalid_source_url"));
+  it("rejects thousands-grouped substring evidence", () => { const v = sample(); v.plans[0].amount = 10; v.plans[0].evidence = { text: "$10,000 per month", token: "10" }; expect(() => validateSnapshot(v)).toThrow("amount_evidence_mismatch"); });
+  it("rejects negative evidence for a positive amount", () => { const v = sample(); v.plans[0].amount = 10; v.plans[0].evidence = { text: "Price: -10", token: "10" }; expect(() => validateSnapshot(v)).toThrow("amount_evidence_mismatch"); });
+  it("accepts grouped thousands matching the full amount", () => { const v = sample(); v.plans[0].amount = 10000; v.plans[0].evidence = { text: "$10,000 per month", token: "10000" }; expect(validateSnapshot(v).plans[0].amount).toBe(10000); });
+  it("accepts an amount followed by punctuation", () => { const v = sample(); v.plans[0].amount = 10; v.plans[0].evidence = { text: "Total: $10.", token: "10" }; expect(validateSnapshot(v).plans[0].amount).toBe(10); });
 });
