@@ -1,7 +1,7 @@
 name: Agent services PostgreSQL tests
 on:
   push:
-    branches: [feat/agent-service-contracts]
+    branches: [feat/agent-service-contracts, feat/agent-native-commerce-api]
 permissions:
   contents: read
 jobs:
