@@ -1,5 +1,6 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { ListToolsRequestSchema, CallToolRequestSchema, ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
+import { publicToolError } from "./agent-commerce/mcp-errors.js";
 
 export interface ToolDef {
   name: string;
@@ -23,14 +24,14 @@ export function createServer(tools: ToolDef[], callTool: (name: string, args: Re
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
     if (!tools.some((t) => t.name === name)) {
-      throw new McpError(ErrorCode.InvalidParams, `unknown tool: ${name}`);
+      throw new McpError(ErrorCode.InvalidParams, "unknown_tool");
     }
     try {
       const result = await callTool(name, (args ?? {}) as Record<string, unknown>);
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return { content: [{ type: "text", text: `gateway error: ${message}` }], isError: true };
+      const error = publicToolError(err);
+      return { content: [{ type: "text", text: JSON.stringify({ error }) }], isError: true };
     }
   });
 

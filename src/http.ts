@@ -8,11 +8,12 @@ import { createX402PricingRouter, PRICING_ROUTE } from "./x402-routes.js";
 import { pricingWorkerFromEnvironment } from "./pricing-worker.js";
 import { createWebToJsonRouter } from "./web-to-json-router.js";
 import { agentCommerceFromEnvironment } from "./agent-commerce/runtime.js";
+import { createRequestDispatcher } from "./agent-commerce/mcp-dispatch.js";
 
 const app = express();
 app.disable("x-powered-by");
 // Prepaid delivery owns its JSON parser and must precede the global parser.
-// Base44 remains the sole entitlement, balance, job, and result authority.
+// Base44 authority here applies only to the existing prepaid storefront path.
 app.use(createWebToJsonRouter());
 const agentCommerce = agentCommerceFromEnvironment();
 app.use("/api/v1/agent", agentCommerce.router);
@@ -36,7 +37,8 @@ app.get("/api/v1/catalog.json", (_req, res) => {
 
 app.post("/mcp", async (req, res) => {
   try {
-    const server = createServer(tools, dispatchTool);
+    const dispatch = createRequestDispatcher(agentCommerce.dependencies, req.rawHeaders, dispatchTool);
+    const server = createServer(tools, dispatch);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     res.on("close", () => {
       void transport.close();
