@@ -7,12 +7,15 @@ import { dispatchTool } from "./dispatch.js";
 import { createX402PricingRouter, PRICING_ROUTE } from "./x402-routes.js";
 import { pricingWorkerFromEnvironment } from "./pricing-worker.js";
 import { createWebToJsonRouter } from "./web-to-json-router.js";
+import { agentCommerceFromEnvironment } from "./agent-commerce/runtime.js";
 
 const app = express();
 app.disable("x-powered-by");
 // Prepaid delivery owns its JSON parser and must precede the global parser.
 // Base44 remains the sole entitlement, balance, job, and result authority.
 app.use(createWebToJsonRouter());
+const agentCommerce = agentCommerceFromEnvironment();
+app.use("/api/v1/agent", agentCommerce.router);
 
 // Enforce the smaller pricing-body limit before the existing global parser.
 app.post(PRICING_ROUTE, express.json({ limit: "8kb", strict: true }));
