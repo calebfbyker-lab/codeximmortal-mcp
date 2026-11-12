@@ -75,7 +75,7 @@ function rpcBody(body: string) {
 async function call(url: string, name: string, args: Record<string, unknown> = {}, headers = ["Authorization", "Bearer buyer-A"]) {
   const response = await http(url, "/mcp", JSON.stringify({ jsonrpc: "2.0", id: 1,
     method: "tools/call", params: { name, arguments: args } }), headers);
-  expect(response.status).toBe(200);
+  expect(response.status, `Unexpected MCP HTTP response: ${response.body.slice(0, 2000)}`).toBe(200);
   return rpcBody(response.body);
 }
 function toolValue(reply: { result: { content: Array<{ text: string }> } }) {
@@ -152,7 +152,8 @@ describe("HTTP MCP transport and injected app", () => {
     for (const name of names) expect(tools.some(t => t.name === name)).toBe(false);
     const f = await start(fixture(), tools);
     const reply = await call(f.url, "codex_pricing_snapshot", {});
-    expect(reply.error.message).toBe("unknown_tool");
+    expect(reply.error.code).toBe(-32602);
+    expect(["unknown_tool", "MCP error -32602: unknown_tool"]).toContain(reply.error.message);
     expect(f.authenticate).not.toHaveBeenCalled(); expect(f.dispatch).not.toHaveBeenCalled();
   });
   it("preserves storefront parsing, agent API parsing and disabled pricing", async () => {
@@ -185,7 +186,8 @@ describe("HTTP MCP transport and injected app", () => {
     await call(url, "codex_catalog_list", {}, []);
     expect(pricing).not.toHaveBeenCalled();
     const large = await http(url, PRICING_ROUTE, JSON.stringify({ value: "x".repeat(9000) }));
-    expect(large.status).toBe(413); expect(pricing).not.toHaveBeenCalled();
+    expect(large.status, `Unexpected pricing HTTP response: ${large.body.slice(0, 2000)}`).toBe(413);
+    expect(pricing).not.toHaveBeenCalled();
     expect(JSON.parse((await http(url, PRICING_ROUTE, "{}")).body)).toEqual({ fixturePricing: true });
   });
 
