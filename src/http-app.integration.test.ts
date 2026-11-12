@@ -53,6 +53,7 @@ async function start(f = fixture(), tools = fixtureTools) {
 function http(url: string, path: string, body?: string, extraHeaders: string[] = []) {
   return new Promise<{ status: number; body: string }>((resolve, reject) => {
     const req = request(new URL(path, url), {
+      agent: false,
       method: body === undefined ? "GET" : "POST",
       headers: ["Host", new URL(url).host, "Accept", "application/json, text/event-stream", "Connection", "close",
         ...(body === undefined ? [] : ["Content-Type", "application/json",
