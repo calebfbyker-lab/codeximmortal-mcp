@@ -1,0 +1,19 @@
+# Owner task queue: first backend increment
+
+Baseline inspected: a881179873ec9f81eaa02c3bea3f8b31c9e49c4f.
+This adds the PostgreSQL backend and a runnable local CLI; owner-dashboard routes and startup wiring are NOT added by this increment. The previous queue ZIP is not a dependency.
+
+## Authority and scope
+The only task kind is service_registry_report, using the actual imported registry. Objective text is a label, not executable instructions. No LLM, outbound discovery/sending, payments, arbitrary tools, document ingestion or training occurs. This is a deterministic worker, not autonomous AI. Policy v1 is fixed: three attempts, 30-second leases, 50 unfinished tasks, 8192-byte results, zero model tokens/spend/subtasks. Task network=false excludes the required PostgreSQL transport; the task cannot call external providers.
+The library and CLI are trusted local administrative interfaces, not login/session boundaries. Owner and actor strings are not authentication. The dashboard adapter must resolve identity from the existing verified session and enforce origin/CSRF before any command; never expose library methods directly as agent tools. Separate verifier execution and different actor labels do not establish database-role isolation. Least-privilege producer/verifier/admin roles remain a production prerequisite.
+
+## Local operation after build and tests
+Provision a dedicated local PostgreSQL database named codex_owner_control. Configure CODEX_OWNER_TASK_DATABASE_URL privately on your machine, never in chat/source/logs, and CODEX_OWNER_TASK_DB_ACK=local-owner-tasks-only. The CLI rejects non-loopback hosts, other database names, query strings and fragments. This is not permission to reuse a financial database.
+Run node dist/control/owner-task-queue.js init to apply migration 003 transactionally ONCE to the dedicated database. It is not an idempotent migration runner and is not run by HTTP startup. No grants, deployment or production migration are configured.
+Commands: propose "objective label"; approve TASK_UUID; resume; pause; list; cancel TASK_UUID; run-once; worker; verifier. Each command follows node dist/control/owner-task-queue.js. Dispatch starts paused. Proposals require owner approval before claim. Worker and verifier may run as separate terminal processes; Ctrl+C stops their polling. Propose uses a random command key unless CODEX_OWNER_TASK_COMMAND_KEY is explicitly set for an immutable retry.
+Build from the intended exact HEAD before running. CLI provenance records the current working-copy Git HEAD, not an attested build. A verified result means structural registry-report equality at that baseline, not product readiness. The verifier reads pending work independently of the latest-50 UI listing. SQL updates lock owner policy before tasks to maintain a consistent order.
+Pause prevents new claims; accepted work may submit and verification may finish. Cancellation fences settlement, not reversal of external effects. This task has no external effects. Expired final attempts become failed on the next unpaused claim scan. History is retained; the view returns the latest 50 tasks and 100 events, not all historical records. Worker/verifier loops stop on an operation error; supervised recovery is not implemented.
+
+## Evidence
+Prepared, not executed. One report-contract test and eleven PostgreSQL integration tests are supplied. Run npm.cmd run build, then npm.cmd exec -- vitest run src/control/owner-task-queue.integration.test.ts using the existing guarded disposable-PostgreSQL procedure, then the full suite with zero skips. No database test pass is claimed. Queue reconstruction is tested; actual process/container restart still needs operational validation.
+The next integration patch must add authenticated task forms/API and startup configuration; this commit alone does not put task controls on the dashboard.
