@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import type { Principal } from "../agent-commerce/api.js";
-import { ApiError, type ExecutionContext } from "../agent-commerce/worker.js";
+import { ApiError, type Principal } from "../agent-commerce/api.js";
+import { type ExecutionContext } from "../agent-commerce/worker.js";
 import { validateSnapshot } from "./pricing-snapshot.js";
 import type { Snapshot } from "./contracts.js";
 
