@@ -35,8 +35,39 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Prepare evidence directory
+        run: mkdir -p ci-evidence
+      - name: Record tested commit and runtime
+        run: |
+          git rev-parse HEAD > ci-evidence/commit.txt
+          node --version > ci-evidence/node-version.txt
+          npm --version > ci-evidence/npm-version.txt
       - run: npm install --no-audit --no-fund
-      - run: npm test
+      - name: Run full suite with machine-readable evidence
+        run: npm test -- --reporter=default --reporter=json --outputFile=ci-evidence/vitest.json
+      - name: Require passing tests with zero skips
+        if: ${{ !cancelled() && (success() || failure()) }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const report = JSON.parse(readFileSync('ci-evidence/vitest.json', 'utf8'));
+          const assertions = (report.testResults ?? []).flatMap(suite => suite.assertionResults ?? []);
+          if (report.success !== true || !Number.isInteger(report.numTotalTests) ||
+              report.numTotalTests < 1 || report.numFailedTests !== 0 ||
+              report.numPendingTests !== 0 || assertions.length !== report.numTotalTests ||
+              assertions.some(test => test.status !== 'passed')) {
+            throw new Error('test_evidence_failed_skipped_or_incomplete');
+          }
+          console.log(JSON.stringify({ total: report.numTotalTests, passed: assertions.length, skipped: 0 }));
+          NODE
       - name: Compile TypeScript even if tests fail
         if: ${{ !cancelled() && (success() || failure()) }}
         run: npm run build
+      - name: Retain verification evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-services-evidence-${{ github.sha }}-${{ github.run_attempt }}
+          path: ci-evidence/
+          if-no-files-found: warn
+          retention-days: 14
