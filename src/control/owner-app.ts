@@ -28,7 +28,8 @@ export function createOwnerControlApp(input?: OwnerConfig, now: () => number = D
   app.use((_req, res, next) => {
     res.set({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
       'Content-Security-Policy': "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
-      'Referrer-Policy': 'no-referrer' }); next();
+      // no-referrer can turn native form POST Origin into null, breaking strict checks.
+      'Referrer-Policy': 'same-origin' }); next();
   });
   app.use(express.json({ limit: '2kb', strict: true }));
   app.use(express.urlencoded({ extended: false, limit: '2kb', parameterLimit: 5 }));
