@@ -32,7 +32,7 @@ function parseIPv4(ip: string): number[] | null {
   return octets;
 }
 
-/** Strict allowlist: anything not clearly public is rejected. */
+/** Address blocklist; comprehensive IPv6 normalization remains a release prerequisite. */
 export function isPublicAddress(ip: string): boolean {
   const v4 = parseIPv4(ip);
   if (v4) {
@@ -41,6 +41,7 @@ export function isPublicAddress(ip: string): boolean {
     if (a === 100 && b >= 64 && b <= 127) return false;
     if (a === 169 && b === 254) return false;
     if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && b === 168) return false;
     if (a === 192 && b === 0) return false;
     if (a === 192 && b === 88 && c === 99) return false;
     if (a === 198 && (b === 18 || b === 19)) return false;
