@@ -32,7 +32,7 @@ param([switch]$TrustLocalCertificate)
     if (-not (Test-Path 'node_modules/.bin/tsc.cmd') -or -not (Test-Path 'node_modules/.bin/vitest.cmd')) { throw 'Existing local dependencies are required. No installation performed.' }
     & npm.cmd run build
     if ($LASTEXITCODE -ne 0) { throw 'Build failed; dashboard not started.' }
-    & npm.cmd exec -- vitest run src/control/owner-app.integration.test.ts src/control/owner-local.test.ts
+    & npm.cmd exec -- vitest run src/control/owner-app.integration.test.ts src/control/owner-local.test.ts src/control/owner-console.test.ts src/control/owner-tasks-http.test.ts
     if ($LASTEXITCODE -ne 0) { throw 'Owner tests failed; dashboard not started.' }
     $after = & git rev-parse HEAD
     if ($LASTEXITCODE -ne 0 -or $after -ne $revision) { throw 'HEAD changed during startup checks.' }
