@@ -1,6 +1,5 @@
 import type { Pool } from "pg";
-import { identifier } from "../agent-services/contracts.js";
-import type { Snapshot } from "../agent-services/contracts.js";
+import { canonicalJson, identifier, type Snapshot } from "../agent-services/contracts.js";
 import type { SnapshotProvenance, SnapshotSink } from "../agent-services/snapshot-provider.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -15,7 +14,11 @@ export class SnapshotSinkError extends Error {
 /**
  * Durable snapshot persistence. Inserts are idempotent per (buyer, snapshot):
  * worker retries under the same jobId re-persist the same snapshot without
- * duplicating rows. The payload always comes from the validated Snapshot.
+ * duplicating rows. On conflict the persisted payload and provenance are read
+ * back within the same transaction and must agree exactly with the retry —
+ * a silent keep-old would let a retry report success while the stored row
+ * differs from the payload the caller received. Any disagreement fails the
+ * transaction and surfaces as a sink error.
  */
 export class PostgresSnapshotSink implements SnapshotSink {
   constructor(private readonly pool: Pick<Pool, "connect">) {}
@@ -41,6 +44,13 @@ export class PostgresSnapshotSink implements SnapshotSink {
          ON CONFLICT (buyer_id, id) DO NOTHING`,
         [buyerId, snapshot.id, JSON.stringify(snapshot), snapshot.coverage === "complete"],
       );
+      const stored = await client.query(
+        "SELECT payload FROM as_snapshots WHERE buyer_id = $1::uuid AND id = $2",
+        [buyerId, snapshot.id],
+      );
+      if (stored.rowCount !== 1 || canonicalJson(stored.rows[0]?.payload) !== canonicalJson(snapshot)) {
+        throw new SnapshotSinkError();
+      }
       await client.query(
         `INSERT INTO as_snapshot_provenance
            (buyer_id, snapshot_id, source_id, content_sha256, fetch_bytes, extracted_plans, raw_content_type)
@@ -49,6 +59,19 @@ export class PostgresSnapshotSink implements SnapshotSink {
         [buyerId, snapshot.id, provenance.sourceId, provenance.contentSha256,
           provenance.fetchBytes, provenance.extractedPlans, provenance.rawContentType],
       );
+      const storedProvenance = await client.query(
+        "SELECT source_id, content_sha256, fetch_bytes, extracted_plans, raw_content_type FROM as_snapshot_provenance WHERE buyer_id = $1::uuid AND snapshot_id = $2",
+        [buyerId, snapshot.id],
+      );
+      const row = storedProvenance.rows[0];
+      if (storedProvenance.rowCount !== 1 || !row
+        || row.source_id !== provenance.sourceId
+        || row.content_sha256 !== provenance.contentSha256
+        || row.fetch_bytes !== provenance.fetchBytes
+        || row.extracted_plans !== provenance.extractedPlans
+        || row.raw_content_type !== provenance.rawContentType) {
+        throw new SnapshotSinkError();
+      }
       await client.query("COMMIT");
     } catch {
       await client.query("ROLLBACK").catch(() => undefined);
