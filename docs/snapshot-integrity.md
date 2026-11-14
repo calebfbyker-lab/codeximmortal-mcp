@@ -59,7 +59,7 @@ suites.
 - P0 items 4-8 status: item 4 (fetch hardening) implemented unexecuted; items
   5-8 (ownership bridge, document extraction, commerce integrity, release
   evidence) remain open.
-- Unexecuted: run npm.cmd exec -- vitest run src/agent-services/snape... use
-  src/agent-services/snapshot-integrity.test.ts after npm.cmd run build as
-  part of the guarded local procedure, with zero skips. Local success is not
-  remote CI success; GitHub Actions remains unverified.
+- Unexecuted: after npm.cmd run build, run npm.cmd exec -- vitest run
+  src/agent-services/snapshot-integrity.test.ts as part of the guarded local
+  procedure, with zero skips. Local success is not remote CI success; GitHub
+  Actions remains unverified.
