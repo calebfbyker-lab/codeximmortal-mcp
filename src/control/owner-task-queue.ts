@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
 import { proposedServices } from '../agent-services/registry.js';
+import { OwnerGovernance, defaultDispatchPolicyDocument } from './owner-governance.js';
 
 export const OWNER_TASK_POLICY = Object.freeze({ version: 1, kind: 'service_registry_report',
   maxAttempts: 3, leaseSeconds: 30, maxUnfinished: 50, maxResultBytes: 8192,
@@ -13,6 +14,11 @@ export const OWNER_TASK_POLICY = Object.freeze({ version: 1, kind: 'service_regi
 export interface OwnerTask { id: string; owner_id: string; objective: string; baseline_revision: string;
   state: string; attempts: number; lease_token: string | null; worker_id: string | null; result: unknown }
 export type OwnerClaim = OwnerTask & { lease_token: string };
+export interface OwnerTaskRecord { id: string; command_key: string; objective: string; baseline_revision: string;
+  state: string; attempts: number; worker_id: string | null; verifier_id: string | null; error_code: string | null;
+  result: unknown; created_at: Date | string }
+export interface OwnerTaskEventRecord { sequence: number | string; task_id: string | null; event_type: string; actor: string; created_at: Date | string }
+export interface OwnerTaskView { paused: boolean; policy: typeof OWNER_TASK_POLICY; tasks: OwnerTaskRecord[]; events: OwnerTaskEventRecord[] }
 class TaskError extends Error {}
 function identifier(value: string) { if (!/^[A-Za-z0-9_.@-]{1,100}$/.test(value)) throw new TaskError('invalid_identity'); }
 function uuid(value: string) { if (!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value)) throw new TaskError('invalid_task_id'); }
@@ -140,49 +146,65 @@ export class OwnerTaskQueue {
       return r.rows;
     });
   }
-  async view() {
+  async view(): Promise<OwnerTaskView> {
     return this.tx(async c => {
       const policy = await this.policy(c);
-      const tasks = await c.query<OwnerTask>(`SELECT * FROM ${this.s}.tasks WHERE owner_id=$1 ORDER BY created_at DESC,id DESC LIMIT 50`, [this.owner]);
-      const events = await c.query(`SELECT * FROM ${this.s}.task_events WHERE owner_id=$1 ORDER BY sequence DESC LIMIT 100`, [this.owner]);
-      return { paused:policy.paused, policy:OWNER_TASK_POLICY, tasks:tasks.rows, events:events.rows };
+      const tasks = await c.query<OwnerTaskRecord>(`SELECT id,command_key,objective,baseline_revision,state,attempts,worker_id,verifier_id,error_code,result,created_at FROM ${this.s}.tasks WHERE owner_id=$1 ORDER BY created_at DESC,id DESC LIMIT 50`, [this.owner]);
+      const events = await c.query<OwnerTaskEventRecord>(`SELECT sequence,task_id,event_type,actor,created_at FROM ${this.s}.task_events WHERE owner_id=$1 ORDER BY sequence DESC LIMIT 100`, [this.owner]);
+      return { paused: policy.paused, policy: OWNER_TASK_POLICY, tasks: tasks.rows, events: events.rows };
     });
   }
 }
-// Local CLI only; no public route or automatic migration. Passwords stay in local secret configuration.
-async function cli() {
-  const raw = process.env.CODEX_OWNER_TASK_DATABASE_URL;
-  if (!raw || process.env.CODEX_OWNER_TASK_DB_ACK!=='local-owner-tasks-only') throw new TaskError('local_task_database_configuration_required');
+// Shared local-only task-database configuration for the CLI and the local dashboard launcher.
+export function localOwnerTaskPool(env: NodeJS.ProcessEnv): Pool | undefined {
+  const raw = env.CODEX_OWNER_TASK_DATABASE_URL;
+  if (!raw) return undefined;
+  if (env.CODEX_OWNER_TASK_DB_ACK!=='local-owner-tasks-only') throw new TaskError('local_task_database_configuration_required');
   const url = new URL(raw);
   if (!['postgres:','postgresql:'].includes(url.protocol) || !['localhost','127.0.0.1','[::1]'].includes(url.hostname) || url.pathname!=='/codex_owner_control' || url.search || url.hash) throw new TaskError('dedicated_local_task_database_required');
-  const pool = new Pool({ connectionString:raw,max:4,connectionTimeoutMillis:5000,statement_timeout:10000 });
+  return new Pool({ connectionString:raw,max:4,connectionTimeoutMillis:5000,statement_timeout:10000 });
+}
+// Local CLI only; no public route or automatic migration. Passwords stay in local secret configuration.
+async function cli() {
+  const pool = localOwnerTaskPool(process.env);
+  if (!pool) throw new TaskError('local_task_database_configuration_required');
   try {
     const mode = process.argv[2];
-    if (mode==='init') {
+    if (mode==='init' || mode==='init-governance') {
       const c = await pool.connect();
-      try { await c.query('BEGIN'); await c.query(readFileSync(new URL('../../migrations/003_owner_tasks.sql',import.meta.url),'utf8')); await c.query('COMMIT'); }
-      catch (e) { await c.query('ROLLBACK'); throw e; } finally { c.release(); }
+      try {
+        await c.query('BEGIN');
+        for (const file of mode==='init' ? ['003_owner_tasks.sql','004_owner_governance.sql'] : ['004_owner_governance.sql'])
+          await c.query(readFileSync(new URL('../../migrations/'+file,import.meta.url),'utf8'));
+        await c.query('COMMIT');
+      } catch (e) { await c.query('ROLLBACK'); throw e; } finally { c.release(); }
     }
     const queue = new OwnerTaskQueue(pool,'owner'); await queue.initialize();
+    if (mode==='init' || mode==='init-governance') {
+      await new OwnerGovernance(pool,'owner').seedInitialPolicy('owner_task_dispatch', defaultDispatchPolicyDocument());
+      console.log(mode==='init' ? 'Owner task and governance schema initialized; dispatch is paused by default.' : 'Owner governance schema initialized; dispatch state is unchanged.');
+    }
     const baseline = () => {
       const value = execFileSync('git',['rev-parse','HEAD'],{ encoding:'utf8',timeout:5000,maxBuffer:8192 }).trim();
       revision(value); return value;
     };
-    if (mode==='init') console.log('Owner task schema initialized; dispatch is paused by default.');
-    else if (mode==='propose') console.log(JSON.stringify(await queue.propose(process.env.CODEX_OWNER_TASK_COMMAND_KEY ?? randomUUID(),process.argv.slice(3).join(' '),baseline())));
+    if (mode==='propose') console.log(JSON.stringify(await queue.propose(process.env.CODEX_OWNER_TASK_COMMAND_KEY ?? randomUUID(),process.argv.slice(3).join(' '),baseline())));
     else if (mode==='approve') await queue.approve(process.argv[3] ?? '');
     else if (mode==='cancel') await queue.cancel(process.argv[3] ?? '');
     else if (mode==='pause' || mode==='resume') await queue.pause(mode==='pause');
     else if (mode==='list') console.log(JSON.stringify(await queue.view(),null,2));
     else if (mode==='worker' || mode==='verifier' || mode==='run-once') {
+      const governance = new OwnerGovernance(pool,'owner');
       const controller = new AbortController();
       process.once('SIGINT',()=>controller.abort()); process.once('SIGTERM',()=>controller.abort());
       do {
         const current = baseline();
         if (mode==='verifier') {
+          await governance.heartbeat('verifier','registry-verifier').catch(()=>undefined);
           for (const task of await queue.pendingVerification()) await queue.verify(task.id,'registry-verifier',current);
         } else {
           const task = await queue.claim('registry-observer');
+          await governance.heartbeat('worker','registry-observer',task?.id).catch(()=>undefined);
           if (task) { await queue.submit(task,registryReport(current)); console.log(JSON.stringify({event:'owner_task_submitted',taskId:task.id})); }
         }
         if (mode==='run-once') break;
