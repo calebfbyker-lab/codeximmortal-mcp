@@ -19,12 +19,13 @@ export interface SafeFetchDeps {
   connect?(target: ResolvedTarget, signal: AbortSignal): Promise<FetchResponse>;
 }
 
-function parseIPv4(ip: string): number[] | null {
-  const parts = ip.split(".");
+function parseIPv4Bytes(ip: string): number[] | null {
+  const parts = String(ip).split(".");
   if (parts.length !== 4) return null;
   const octets: number[] = [];
   for (const part of parts) {
-    if (!/^\d{1,3}$/.test(part)) return null;
+    if (part.length < 1 || part.length > 3) return null;
+    for (const ch of part) if (ch < "0" || ch > "9") return null;
     const value = Number(part);
     if (value > 255) return null;
     octets.push(value);
@@ -32,34 +33,110 @@ function parseIPv4(ip: string): number[] | null {
   return octets;
 }
 
-/** Address blocklist; comprehensive IPv6 normalization remains a release prerequisite. */
-export function isPublicAddress(ip: string): boolean {
-  const v4 = parseIPv4(ip);
-  if (v4) {
-    const [a, b, c] = v4;
-    if (a === 0 || a === 10 || a === 127) return false;
-    if (a === 100 && b >= 64 && b <= 127) return false;
-    if (a === 169 && b === 254) return false;
-    if (a === 172 && b >= 16 && b <= 31) return false;
-    if (a === 192 && b === 168) return false;
-    if (a === 192 && b === 0) return false;
-    if (a === 192 && b === 88 && c === 99) return false;
-    if (a === 198 && (b === 18 || b === 19)) return false;
-    if (a === 198 && b === 51 && c === 100) return false;
-    if (a === 203 && b === 0 && c === 113) return false;
-    if (a >= 224) return false;
-    return true;
+const HEX_DIGITS = "0123456789abcdef";
+
+function parseHextet(group: string): number | null {
+  if (group.length < 1 || group.length > 4) return null;
+  let value = 0;
+  for (const ch of group) {
+    const digit = HEX_DIGITS.indexOf(ch);
+    if (digit < 0) return null;
+    value = value * 16 + digit;
   }
-  const value = String(ip).toLowerCase();
-  if (!value.includes(":")) return false;
-  if (value === "::" || value === "::1") return false;
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(value);
-  if (mapped) return isPublicAddress(mapped[1]);
-  if (value.startsWith("fc") || value.startsWith("fd")) return false;
-  if (/^fe[89ab]/.test(value)) return false;
-  if (value.startsWith("ff")) return false;
-  if (value.startsWith("2001:db8")) return false;
-  if (value.startsWith("::")) return false;
+  return value;
+}
+
+/**
+ * Byte-exact IPv6 parser: accepts compressed "::" and embedded IPv4 notation,
+ * strips zone identifiers, and rejects anything malformed. Parsed character by
+ * character with no regexes so exotic spellings cannot smuggle past checks.
+ * Returns the 16 address bytes, or null when the input is not an IPv6 address.
+ */
+export function parseIPv6Bytes(input: string): number[] | null {
+  let text = String(input).toLowerCase().trim();
+  const zone = text.indexOf("%");
+  if (zone >= 0) text = text.slice(0, zone);
+  if (!text.includes(":")) return null;
+  let v4tail: number[] | null = null;
+  if (text.includes(".")) {
+    const colon = text.lastIndexOf(":");
+    v4tail = parseIPv4Bytes(text.slice(colon + 1));
+    if (!v4tail) return null;
+    text = text.slice(0, colon) + ":0:0";
+  }
+  const doubleAt = text.indexOf("::");
+  const hasDouble = doubleAt >= 0;
+  if (hasDouble && text.split("::").length > 2) return null;
+  const before = hasDouble ? text.slice(0, doubleAt) : text;
+  const after = hasDouble ? text.slice(doubleAt + 2) : "";
+  const head = before.length > 0 ? before.split(":") : [];
+  const tail = after.length > 0 ? after.split(":") : [];
+  if (head.some(group => group.length === 0) || tail.some(group => group.length === 0)) return null;
+  if (hasDouble ? head.length + tail.length > 7 : head.length !== 8) return null;
+  const hextets: number[] = [];
+  for (const group of head) {
+    const value = parseHextet(group);
+    if (value === null) return null;
+    hextets.push(value);
+  }
+  if (hasDouble) while (hextets.length < 8 - tail.length) hextets.push(0);
+  for (const group of tail) {
+    const value = parseHextet(group);
+    if (value === null) return null;
+    hextets.push(value);
+  }
+  if (hextets.length !== 8) return null;
+  if (v4tail) {
+    hextets[6] = (v4tail[0] << 8) | v4tail[1];
+    hextets[7] = (v4tail[2] << 8) | v4tail[3];
+  }
+  const bytes: number[] = [];
+  for (const value of hextets) bytes.push(value >> 8, value & 0xff);
+  return bytes;
+}
+
+function ipv4IsPublic(octets: number[]): boolean {
+  const [a, b, c] = octets;
+  if (a === 0 || a === 10 || a === 127) return false;
+  if (a === 100 && b >= 64 && b <= 127) return false;
+  if (a === 169 && b === 254) return false;
+  if (a === 172 && b >= 16 && b <= 31) return false;
+  if (a === 192 && b === 168) return false;
+  if (a === 192 && b === 0) return false;
+  if (a === 192 && b === 88 && c === 99) return false;
+  if (a === 198 && (b === 18 || b === 19)) return false;
+  if (a === 198 && b === 51 && c === 100) return false;
+  if (a === 203 && b === 0 && c === 113) return false;
+  if (a >= 224) return false;
+  return true;
+}
+
+const allZero = (bytes: number[]) => bytes.every(byte => byte === 0);
+
+/**
+ * Destination policy, byte-exact and fail closed: anything that does not parse
+ * is treated as private. IPv4-mapped, IPv4-compatible, NAT64 and 6to4 forms are
+ * reduced to their embedded IPv4 payload and classified; loopback, Teredo,
+ * discard-only, documentation, ULA, link-local, site-local and multicast ranges
+ * are always blocked.
+ */
+export function isPublicAddress(ip: string): boolean {
+  const v4 = parseIPv4Bytes(ip);
+  if (v4) return ipv4IsPublic(v4);
+  const bytes = parseIPv6Bytes(ip);
+  if (!bytes) return false;
+  if (allZero(bytes)) return false;
+  if (allZero(bytes.slice(0, 12))) return ipv4IsPublic(bytes.slice(12));
+  if (allZero(bytes.slice(0, 10)) && bytes[10] === 0xff && bytes[11] === 0xff) return ipv4IsPublic(bytes.slice(12));
+  if (bytes[0] === 0x00 && bytes[1] === 0x64 && bytes[2] === 0xff && bytes[3] === 0x9b && allZero(bytes.slice(4, 12))) return ipv4IsPublic(bytes.slice(12));
+  if (bytes[0] === 0x20 && bytes[1] === 0x02) return ipv4IsPublic(bytes.slice(2, 6));
+  if (bytes[0] === 0x20 && bytes[1] === 0x01 && bytes[2] === 0x00 && bytes[3] === 0x00) return false;
+  if (bytes[0] === 0x20 && bytes[1] === 0x01 && bytes[2] === 0x0d && bytes[3] === 0xb8) return false;
+  if (bytes[0] === 0x01 && allZero(bytes.slice(1, 8))) return false;
+  if ((bytes[0] & 0xfe) === 0xfc) return false;
+  if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) return false;
+  if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0xc0) return false;
+  if (bytes[0] === 0xff) return false;
   return true;
 }
 
@@ -69,6 +146,10 @@ export function validateFetchUrl(value: string): URL {
   try { url = new URL(value); } catch { throw new SafeFetchError("invalid_fetch_url"); }
   if (url.protocol !== "https:" || url.username || url.password || url.hash) throw new SafeFetchError("invalid_fetch_url");
   if (!url.hostname || url.hostname.length > 253) throw new SafeFetchError("invalid_fetch_url");
+  if (url.port) {
+    const port = Number(url.port);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) throw new SafeFetchError("invalid_fetch_url");
+  }
   return url;
 }
 
@@ -76,9 +157,27 @@ async function dnsResolve(hostname: string) {
   return lookup(hostname, { all: true });
 }
 
-async function resolveTarget(url: URL, resolve: NonNullable<SafeFetchDeps["resolve"]>): Promise<ResolvedTarget> {
-  const records = await resolve(url.hostname).catch(() => { throw new SafeFetchError("fetch_dns_failed"); });
+async function resolveTarget(url: URL, resolve: NonNullable<SafeFetchDeps["resolve"]>, dnsTimeoutMs: number, maxRecords: number): Promise<ResolvedTarget> {
+  const hostname = url.hostname;
+  if (hostname.startsWith("[") && hostname.endsWith("]")) {
+    const literal = hostname.slice(1, -1);
+    if (!isPublicAddress(literal)) throw new SafeFetchError("fetch_private_address_rejected");
+    return { url, ip: literal };
+  }
+  let timer: NodeJS.Timeout | undefined;
+  let records: Array<{ address: string; family: number }>;
+  try {
+    records = await Promise.race([
+      resolve(hostname).catch(() => { throw new SafeFetchError("fetch_dns_failed"); }),
+      new Promise<Array<{ address: string; family: number }>>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new SafeFetchError("fetch_dns_failed")), dnsTimeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
   if (!Array.isArray(records) || records.length === 0) throw new SafeFetchError("fetch_dns_failed");
+  if (records.length > maxRecords) throw new SafeFetchError("fetch_dns_failed");
   const addresses = records.map(record => record?.address).filter((address): address is string => typeof address === "string");
   if (addresses.length !== records.length || !addresses.every(isPublicAddress)) {
     throw new SafeFetchError("fetch_private_address_rejected");
@@ -92,9 +191,12 @@ function httpsConnect(target: ResolvedTarget, signal: AbortSignal): Promise<Fetc
     const request = httpsRequest({
       host: target.ip,
       port: target.url.port ? Number(target.url.port) : 443,
-      path: `${target.url.pathname}${target.url.search}`,
+      path: target.url.pathname + target.url.search,
       method: "GET",
       servername: target.url.hostname,
+      minVersion: "TLSv1.2",
+      rejectUnauthorized: true,
+      ALPNProtocols: ["http/1.1"],
       signal,
       headers: {
         host: target.url.host,
@@ -114,14 +216,24 @@ function headerValue(headers: FetchResponse["headers"], name: string): string | 
   return Array.isArray(value) ? value[0] : value;
 }
 
+function disposeStream(stream: AsyncIterable<Uint8Array>): void {
+  const disposable = stream as unknown as { destroy?: (error?: Error) => void };
+  try { disposable.destroy?.(new Error("fetch_stream_disposed")); } catch { /* disposal is best effort */ }
+}
+
 async function readAll(stream: AsyncIterable<Uint8Array>, maxBytes: number, signal: AbortSignal): Promise<string> {
   const chunks: Buffer[] = [];
   let total = 0;
-  for await (const chunk of stream) {
-    if (signal.aborted) throw new SafeFetchError("fetch_aborted");
-    total += chunk.byteLength;
-    if (total > maxBytes) throw new ApiError(422, "source_too_large");
-    chunks.push(Buffer.from(chunk));
+  try {
+    for await (const chunk of stream) {
+      if (signal.aborted) throw new SafeFetchError("fetch_aborted");
+      total += chunk.byteLength;
+      if (total > maxBytes) throw new ApiError(422, "source_too_large");
+      chunks.push(Buffer.from(chunk));
+    }
+  } catch (error) {
+    disposeStream(stream);
+    throw error;
   }
   return Buffer.concat(chunks).toString("utf8");
 }
@@ -129,12 +241,14 @@ async function readAll(stream: AsyncIterable<Uint8Array>, maxBytes: number, sign
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 
 /**
- * SafePageFetch implementation for the snapshot provider. HTTPS only,
- * DNS resolution validated against private ranges, connection pinned to the
- * validated IP (SNI preserved), bounded redirects (each fully re-validated),
- * byte and time limits, and caller-signal cancellation.
- * 4xx results are terminal provider rejections; network/timeout failures are
- * transient and left to the durable worker's retry policy.
+ * SafePageFetch implementation for the snapshot provider. HTTPS only, DNS
+ * resolution bounded (time and record count) and validated against the
+ * byte-exact private-range policy, connection pinned to the validated IP with
+ * SNI preserved and TLS 1.2 as the floor, bounded redirects each fully
+ * re-validated, response streams disposed on redirect, abort and failure,
+ * byte and time limits, and caller-signal cancellation. 4xx results are
+ * terminal provider rejections; network/timeout failures are transient and
+ * left to the durable worker's retry policy.
  */
 export class SafeFetchAdapter implements SafePageFetch {
   private readonly resolve: NonNullable<SafeFetchDeps["resolve"]>;
@@ -142,17 +256,24 @@ export class SafeFetchAdapter implements SafePageFetch {
   private readonly maxBytes: number;
   private readonly timeoutMs: number;
   private readonly maxRedirects: number;
+  private readonly dnsTimeoutMs: number;
+  private readonly maxDnsRecords: number;
 
-  constructor(options: { maxBytes?: number; timeoutMs?: number; maxRedirects?: number; deps?: SafeFetchDeps } = {}) {
+  constructor(options: { maxBytes?: number; timeoutMs?: number; maxRedirects?: number; dnsTimeoutMs?: number; maxDnsRecords?: number; deps?: SafeFetchDeps } = {}) {
     const maxBytes = options.maxBytes ?? 512 * 1024;
     const timeoutMs = options.timeoutMs ?? 10_000;
     const maxRedirects = options.maxRedirects ?? 3;
+    const dnsTimeoutMs = options.dnsTimeoutMs ?? 5_000;
+    const maxDnsRecords = options.maxDnsRecords ?? 32;
     if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 8_388_608
       || !Number.isSafeInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 120_000
-      || !Number.isSafeInteger(maxRedirects) || maxRedirects < 0 || maxRedirects > 5) {
+      || !Number.isSafeInteger(maxRedirects) || maxRedirects < 0 || maxRedirects > 5
+      || !Number.isSafeInteger(dnsTimeoutMs) || dnsTimeoutMs < 250 || dnsTimeoutMs > 60_000
+      || !Number.isSafeInteger(maxDnsRecords) || maxDnsRecords < 1 || maxDnsRecords > 256) {
       throw new Error("invalid_fetch_configuration");
     }
     this.maxBytes = maxBytes; this.timeoutMs = timeoutMs; this.maxRedirects = maxRedirects;
+    this.dnsTimeoutMs = dnsTimeoutMs; this.maxDnsRecords = maxDnsRecords;
     this.resolve = options.deps?.resolve ?? dnsResolve;
     this.connect = options.deps?.connect ?? httpsConnect;
   }
@@ -168,12 +289,13 @@ export class SafeFetchAdapter implements SafePageFetch {
     try {
       let current = validateFetchUrl(url);
       for (let redirects = 0; ; redirects++) {
-        const target = await resolveTarget(current, this.resolve);
+        const target = await resolveTarget(current, this.resolve, this.dnsTimeoutMs, this.maxDnsRecords);
         const response = await this.connect(target, controller.signal);
         if (REDIRECTS.has(response.status)) {
           if (redirects >= this.maxRedirects) throw new SafeFetchError("fetch_too_many_redirects");
           const location = headerValue(response.headers, "location");
           if (!location) throw new SafeFetchError("fetch_invalid_redirect");
+          disposeStream(response.stream);
           current = validateFetchUrl(new URL(location, current).href);
           continue;
         }
