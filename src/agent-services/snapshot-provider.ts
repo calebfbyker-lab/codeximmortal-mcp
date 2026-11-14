@@ -185,28 +185,40 @@ export function buildSnapshot(
   if (bytes > MAX_BODY_BYTES) throw new ProviderRejectedError("source_too_large");
   const plansRaw = extractPlans(fetchResult.body);
   const capturedAt = now.toISOString();
-  // Content-derived plan identity: reordering the offers array preserves ids.
+  // Plan identity is keyed on the plan name, the durable identity of an offer
+  // — NOT on amount: a price change must keep the same id so comparisons can
+  // report price_changed rather than degrading into remove+add. Reordering
+  // the offers array preserves ids because ordinals within a shared-name
+  // group are assigned by sorted content, never by array position.
   const contentKeys = plansRaw.map(plan => plan.name + "|" + String(plan.amount) + "|" + (plan.currency ?? "XXX") + "|" + (plan.interval ?? "unknown"));
-  const totals = new Map<string, number>();
-  for (const key of contentKeys) totals.set(key, (totals.get(key) ?? 0) + 1);
-  const seen = new Map<string, number>();
-  const plans = plansRaw.map((plan, index) => {
-    const key = contentKeys[index];
-    const ordinal = (seen.get(key) ?? 0) + 1;
-    seen.set(key, ordinal);
-    const digest = createHash("sha256").update(key).digest("hex").slice(0, 12);
-    const planId = (totals.get(key) ?? 1) > 1 ? "plan-" + digest + "-" + ordinal : "plan-" + digest;
-    return {
-      id: planId,
-      name: plan.name.slice(0, 256),
-      amount: plan.amount,
-      currency: plan.currency ?? "XXX",
-      interval: plan.interval ?? "unknown",
-      evidence: plan.amount === null
-        ? null
-        : { text: plan.excerpt, token: String(plan.amount), sourceStart: plan.sourceStart, sourceEnd: plan.sourceEnd },
-    };
+  const nameGroups = new Map<string, number[]>();
+  plansRaw.forEach((_plan, index) => {
+    const group = nameGroups.get(plansRaw[index].name);
+    if (group) group.push(index);
+    else nameGroups.set(plansRaw[index].name, [index]);
   });
+  const planIds = new Array<string>(plansRaw.length);
+  for (const [name, indexes] of nameGroups) {
+    const digest = createHash("sha256").update(name).digest("hex").slice(0, 12);
+    if (indexes.length === 1) {
+      planIds[indexes[0]] = "plan-" + digest;
+      continue;
+    }
+    const sorted = [...indexes].sort((a, b) => (contentKeys[a] < contentKeys[b] ? -1 : contentKeys[a] > contentKeys[b] ? 1 : 0));
+    sorted.forEach((originalIndex, rank) => {
+      planIds[originalIndex] = "plan-" + digest + "-" + String(rank + 1);
+    });
+  }
+  const plans = plansRaw.map((plan, index) => ({
+    id: planIds[index],
+    name: plan.name.slice(0, 256),
+    amount: plan.amount,
+    currency: plan.currency ?? "XXX",
+    interval: plan.interval ?? "unknown",
+    evidence: plan.amount === null
+      ? null
+      : { text: plan.excerpt, token: String(plan.amount), sourceStart: plan.sourceStart, sourceEnd: plan.sourceEnd },
+  }));
   const coverage = plansRaw.length > 0
     && plansRaw.every(p => p.amount !== null && p.currency !== null && p.interval !== null)
     ? "complete" : "partial";
