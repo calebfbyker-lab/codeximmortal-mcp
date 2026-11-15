@@ -1,0 +1,20 @@
+{
+  "schema": "distribution-observations-v1",
+  "observations": [
+    {
+      "channel": "glama",
+      "sourceUrl": "https://glama.ai/mcp/connectors/io.github.calebfbyker-lab/codeximmortal",
+      "observedOn": "2026-11-15",
+      "method": "assistant_web_page_extract",
+      "serverName": "io.github.calebfbyker-lab/codeximmortal",
+      "listingPresence": "observed",
+      "reportedOwnership": "Ownership verified",
+      "reportedStatus": "Healthy",
+      "reportedLastTested": "2026-11-10 05:29; timezone not specified",
+      "reportedToolCount": 6,
+      "reportedTransport": "Streamable HTTP; MCP 2025-11-25",
+      "independentRuntimeVerification": "not_performed",
+      "limitations": "Recorded third-party page contents, not a fresh MCP client test, verified sale, publication receipt, or deployed revision. Do not interpret the reported health label as current independent uptime."
+    }
+  ]
+}
