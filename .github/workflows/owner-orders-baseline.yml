@@ -1,0 +1,85 @@
+name: Owner Orders exact baseline
+on:
+  push:
+    branches: [feat/agent-native-commerce-api]
+    paths: [.github/workflows/owner-orders-baseline.yml]
+permissions:
+  contents: read
+concurrency:
+  group: owner-orders-baseline-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: codex_orders_baseline
+          POSTGRES_USER: codex_ci
+          POSTGRES_PASSWORD: synthetic_ci_only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U codex_ci -d codex_orders_baseline"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      TEST_DATABASE_URL: postgresql://codex_ci:synthetic_ci_only@localhost:5432/codex_orders_baseline
+      REQUIRE_DB_TESTS: 'true'
+      CODEX_DB_TEST_ACK: disposable-database-only
+      X402_ENABLED: 'false'
+      PRICING_APPROVED_URLS: '[]'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 24abcfb8bc532fb7120c7343fdbc14957b6275a7
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Record exact source and runtime
+        run: |
+          mkdir -p ci-evidence
+          test "$(git rev-parse HEAD)" = 24abcfb8bc532fb7120c7343fdbc14957b6275a7
+          git rev-parse HEAD > ci-evidence/tested-commit.txt
+          printf '%s\n' '${{ github.sha }}' > ci-evidence/workflow-commit.txt
+          node --version > ci-evidence/node-version.txt
+          npm --version > ci-evidence/npm-version.txt
+      - name: Resolve baseline dependencies without changing owner working copy
+        run: |
+          set -o pipefail
+          npm install --no-audit --no-fund 2>&1 | tee ci-evidence/install.log
+          npm ls --all --json > ci-evidence/dependencies.json
+          if test -f package-lock.json; then sha256sum package-lock.json > ci-evidence/resolved-lock-sha256.txt; fi
+      - name: Run projection, PostgreSQL admission and existing owner-auth suites
+        run: |
+          set -o pipefail
+          npx --no-install vitest run src/control/owner-commerce-orders.test.ts src/agent-commerce/postgres-commerce.integration.test.ts src/control/owner-app.integration.test.ts --reporter=default --reporter=json --outputFile=ci-evidence/vitest.json 2>&1 | tee ci-evidence/tests.log
+      - name: Reject failed or skipped selected tests
+        if: ${{ !cancelled() && (success() || failure()) }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const r = JSON.parse(readFileSync('ci-evidence/vitest.json', 'utf8'));
+          const suites = r.testResults ?? [];
+          const assertions = suites.flatMap(s => s.assertionResults ?? []);
+          for (const file of ['owner-commerce-orders.test.ts', 'postgres-commerce.integration.test.ts', 'owner-app.integration.test.ts']) {
+            if (!suites.some(s => s.name.endsWith(file) && s.status === 'passed' && s.assertionResults?.length > 0)) throw new Error('missing_or_failed_suite:' + file);
+          }
+          if (r.success !== true || r.numFailedTests !== 0 || r.numPendingTests !== 0 || assertions.length < 1 || assertions.length !== r.numTotalTests || assertions.some(t => t.status !== 'passed')) throw new Error('baseline_test_evidence_failed_or_skipped');
+          NODE
+      - name: Compile baseline independently of test outcome
+        if: ${{ !cancelled() && (success() || failure()) }}
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee ci-evidence/build.log
+      - name: Retain verification evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: owner-orders-baseline-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ci-evidence/
+          if-no-files-found: error
+          retention-days: 14
