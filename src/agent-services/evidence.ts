@@ -55,7 +55,9 @@ function isDigit(ch: string | undefined): boolean {
 }
 
 /** Standalone numeric candidates including thousands grouping and signs,
- *  found by scanning rather than regex so grouping cannot be misread. */
+ *  found by scanning rather than regex so grouping cannot be misread. The
+ *  run always advances: a leading sign is consumed before digits, and a
+ *  zero-length run is skipped defensively. */
 function standaloneNumbers(source: string): number[] {
   const found: number[] = [];
   let index = 0;
@@ -63,11 +65,13 @@ function standaloneNumbers(source: string): number[] {
     const ch = source[index];
     if (!isDigit(ch) && !(ch === "-" && isDigit(source[index + 1]))) { index++; continue; }
     let end = index;
+    if (source[end] === "-") end++;
     while (end < source.length) {
       const c = source[end];
       if (isDigit(c) || c === "," || c === ".") end++;
       else break;
     }
+    if (end === index) { index++; continue; }
     const parsed = Number(source.slice(index, end).split(",").join(""));
     if (Number.isFinite(parsed)) found.push(parsed);
     index = end;
