@@ -1,6 +1,6 @@
 import express, { type ErrorRequestHandler, type Request, type Response } from 'express';
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
-import { ownerConsole, ownerCss, ownerLogin, ownerOverview, type OwnerConsoleTasks } from './owner-console.js';
+import { ownerConsole, ownerCss, ownerJs, ownerLogin, ownerOverview, type OwnerConsoleTasks } from './owner-console.js';
 import type { OwnerTask, OwnerTaskView } from './owner-task-queue.js';
 import type { OwnerGovernanceAgent, OwnerGovernanceView } from './owner-governance.js';
 
@@ -47,11 +47,13 @@ export function createOwnerControlApp(input?: OwnerConfig, now: () => number = D
   app.disable('x-powered-by'); app.set('trust proxy', false);
   app.use((_req, res, next) => {
     res.set({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
-      'Content-Security-Policy': "default-src 'none'; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+      'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
       'Referrer-Policy': 'same-origin' }); next();
   });
-  // Only static, non-sensitive CSS is public. All overview data requires a valid session.
+  // Only static, non-sensitive CSS and the console enhancement script are public.
+  // All overview data requires a valid session.
   app.get('/assets/owner.css', (_req, res) => { res.type('css').send(ownerCss); });
+  app.get('/assets/owner.js', (_req, res) => { res.type('application/javascript').send(ownerJs); });
   app.use(express.json({ limit: '2kb', strict: true }));
   app.use(express.urlencoded({ extended: false, limit: '2kb', parameterLimit: 5 }));
   function current(req: Request) {
