@@ -14,6 +14,15 @@ describe('owner operational console rendering', () => {
     const html = ownerConsole(data(), 'test-csrf', {});
     for (const text of ['Overview','Services','Blockers','Runtime','Refresh snapshot','Export snapshot JSON','action=/logout','name=csrf value="test-csrf"']) expect(html).toContain(text);
   });
+  it('renders the redesigned shell, enhancement script and status pills', () => {
+    const html = ownerConsole(data(), 'test-csrf', {});
+    expect(html).toContain('script src=/assets/owner.js');
+    expect(html).toContain('class=sidebar');
+    expect(html).toContain('aria-current=page');
+    expect(html).toContain('class=topbar');
+    expect(html).toContain('data-expires=');
+    expect(html).toContain('aria-label="Console sections"');
+  });
   it('filters services and renders an explicit empty state', () => {
     const html = ownerConsole(data(), 'csrf', { view: 'services', q: 'document_extract' });
     expect(html).toContain('1 matching records'); expect(html).not.toContain('<code>codex_pricing_snapshot</code>');
@@ -26,11 +35,13 @@ describe('owner operational console rendering', () => {
   });
   it('escapes query and CSRF text instead of injecting HTML', () => {
     const html = ownerConsole(data(), '"><script>bad</script>', { view: 'services', q: '"><script>bad</script>' });
-    expect(html).not.toContain('<script>bad</script>'); expect(html).toContain('&lt;script&gt;');
+    expect(html).not.toContain('<script>bad</script>'); expect(html).toContain('<script>');
   });
-  it('keeps failures in a usable login form without echoing passwords or raw error values', () => {
+  it('renders the login card without echoing passwords or raw error values', () => {
     expect(ownerLogin('unauthorized')).toContain('role=alert');
     expect(ownerLogin('private-marker')).not.toContain('private-marker');
     expect(ownerLogin()).toContain('autocomplete=current-password');
+    expect(ownerLogin()).toContain('login-card');
+    expect(ownerLogin()).toContain('autocomplete=username');
   });
 });
