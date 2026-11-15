@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { createOwnerControlApp } from './owner-app.js';
 import { localOwnerTaskPool, OwnerTaskQueue } from './owner-task-queue.js';
 import { OwnerGovernance } from './owner-governance.js';
+import { PostgresAnalyticsStore } from './owner-analytics.js';
 
 export function localOwnerConfig(env: NodeJS.ProcessEnv) {
   const password = env.CODEX_OWNER_LOCAL_PASSWORD ?? '';
@@ -25,9 +26,10 @@ async function main() {
   const taskPool = localOwnerTaskPool(process.env);
   const queue = taskPool ? new OwnerTaskQueue(taskPool, 'owner') : undefined;
   const governance = taskPool ? new OwnerGovernance(taskPool, 'owner') : undefined;
+  const analytics = taskPool ? new PostgresAnalyticsStore(taskPool) : undefined;
   const ca = readFileSync(settings.caFile);
   const server = createServer({ pfx: readFileSync(settings.pfxFile), passphrase: settings.passphrase,
-    minVersion: 'TLSv1.2' }, createOwnerControlApp(settings.app, Date.now, queue, governance));
+    minVersion: 'TLSv1.2' }, createOwnerControlApp(settings.app, Date.now, queue, governance, analytics));
   function probe(path: string, body?: string, cookie?: string) {
     return new Promise<{ status: number; text: string; cookie: string }>((resolve, reject) => {
       const req = request({ hostname: '127.0.0.1', port: 8443, servername: 'localhost', ca,
@@ -36,12 +38,15 @@ async function main() {
           ...(cookie ? { Cookie: cookie } : {}),
           ...(body === undefined ? {} : { Origin: settings.app.origin, 'Content-Type': 'application/json',
             'Content-Length': Buffer.byteLength(body) }) } }, res => {
-        let text = ''; res.setEncoding('utf8'); res.on('data', chunk => { text += chunk; if (text.length > 32768) res.destroy(new Error('probe_limit')); });
+        let text = '';
+        res.setEncoding('utf8');
+        res.on('data', chunk => { text += chunk; if (text.length > 32768) res.destroy(new Error('probe_limit')); });
         res.on('error', reject);
         res.on('end', () => resolve({ status: res.statusCode ?? 0, text, cookie: res.headers['set-cookie']?.[0]?.split(';')[0] ?? '' }));
       });
       req.setTimeout(5000, () => req.destroy(new Error('probe_timeout')));
-      req.on('error', reject); req.end(body);
+      req.on('error', reject);
+      req.end(body);
     });
   }
   const stop = () => { server.closeAllConnections(); server.close(); if (taskPool) void taskPool.end().catch(() => undefined); };
@@ -62,6 +67,7 @@ async function main() {
     console.log('Owner HTTPS login, overview, tasks and logout self-check passed.');
     console.log('Open https://localhost:8443/login ; username: owner ; use the password entered locally.');
     console.log(queue ? 'Owner task queue connected to the configured local database. Use the Tasks view to propose, approve, cancel, pause and resume tasks.' : 'Task queue not configured; the Tasks view shows the not-configured state.');
+    console.log(analytics ? 'Analytics views (Revenue, Pipeline) read the owner-local cache; populate it with node dist/control/owner-stripe-sync.js.' : 'Analytics not configured; the Revenue and Pipeline views show the not-configured state.');
     console.log('Workers and verifiers stay separate local CLI processes; this process never executes tasks. Ctrl+C stops it.');
     process.once('SIGINT', stop); process.once('SIGTERM', stop);
   } catch { password = ''; stop(); throw new Error('owner_local_start_failed'); }
