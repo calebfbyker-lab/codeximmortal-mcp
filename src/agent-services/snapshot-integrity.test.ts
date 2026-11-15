@@ -47,8 +47,14 @@ describe("original-source evidence (P0 item 1)", () => {
   it("validates amount evidence with span fields and rejects the old shape", () => {
     expect(validateAmountEvidence(10, { text: '{"amount":10}', token: "10", sourceStart: 0, sourceEnd: 12 })).toEqual({ text: '{"amount":10}', token: "10", sourceStart: 0, sourceEnd: 12 });
     expect(() => validateAmountEvidence(10, { text: '{"amount":10}', token: "10" })).toThrow();
-    expect(() => validateAmountEvidence(10, { text: 'costs 100 dollars', token: "10", sourceStart: 0, sourceEnd: 15 })).toThrow("amount_evidence_mismatch");
+    expect(() => validateAmountEvidence(10, { text: "costs 100 dollars", token: "10", sourceStart: 0, sourceEnd: 17 })).toThrow("amount_evidence_mismatch");
     expect(() => validateAmountEvidence(10, { text: '{"amount":10}', token: "10", sourceStart: 5, sourceEnd: 5 })).toThrow("invalid_evidence_span");
+    expect(validateAmountEvidence(10, { text: "Price: -10 minus ten", token: "10", sourceStart: 0, sourceEnd: 20 })).toBeUndefined();
+  });
+
+  it("never stalls on a negative number run", () => {
+    expect(() => validateAmountEvidence(10, { text: "Price: -10 minus ten", token: "10", sourceStart: 0, sourceEnd: 20 })).toThrow("amount_evidence_mismatch");
+    expect(validateAmountEvidence(10, { text: "between -10 and 10 units", token: "10", sourceStart: 0, sourceEnd: 24 }).token).toBe("10");
   });
 });
 
@@ -83,7 +89,7 @@ class FakeClient {
     if (sql.startsWith("BEGIN") || sql.startsWith("COMMIT") || sql.startsWith("ROLLBACK")) return { rows: [], rowCount: 0 };
     if (sql.includes("INSERT INTO as_snapshots")) return { rows: [], rowCount: 1 };
     if (sql.includes("INSERT INTO as_snapshot_provenance")) return { rows: [], rowCount: 1 };
-    if (sql.includes("SELECT payload")) return { rows: [this.payloadRow], rowCount: 1 };
+    if (sql.includes("SELECT payload")) return { rows: [{ payload: this.payloadRow }], rowCount: 1 };
     if (sql.includes("SELECT source_id, content_sha256")) return { rows: this.provenanceRow ? [this.provenanceRow] : [], rowCount: this.provenanceRow ? 1 : 0 };
     throw new Error("unexpected sql");
   }
