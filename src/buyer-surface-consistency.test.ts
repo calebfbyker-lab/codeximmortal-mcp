@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { loadCatalog, getOffer, listOffers } from './catalog.js';
 import { findProjectFile, loadTools } from './load-tools.js';
-import { recordedListingObservation, listingObservationPanel } from './control/listing-observations.js';
+import { recordedListingEvidence, listingObservationPanel } from './control/listing-observations.js';
 const catalog = loadCatalog();
 const guide = findProjectFile('docs/buyer-guide.md');
 const registry = JSON.parse(findProjectFile('server.json'));
@@ -44,10 +44,18 @@ describe('buyer documentation and existing discovery contracts', () => {
     expect(guide).toContain('Render/MCP execution is not connected');
     expect(guide).toContain('planned/unpublished');
   });
-  it('labels the recorded Glama observation as third-party historical runtime evidence', () => {
-    const r = recordedListingObservation();
-    expect(r.channel).toBe('glama'); expect(r.independentRuntimeVerification).toBe('not_performed');
-    expect(r.reportedLastTested).toContain('2026-11-10');
-    expect(listingObservationPanel()).toContain('Third-party page evidence, not a live check.');
+  it('preserves recorded Glama evidence without treating it as a live independent runtime test', () => {
+    const evidence = recordedListingEvidence(Date.parse('2026-11-15T22:00:00.000Z'));
+    expect(evidence.status).toBe('available');
+    if (evidence.status !== 'available') throw new Error('listing_evidence_unavailable');
+    expect(evidence.data.scope).toBe('recorded_evidence_not_live');
+    const r = evidence.data.observations.find(o => o.channel === 'glama' && o.sourceUrl === 'https://glama.ai/mcp/connectors/io.github.calebfbyker-lab/codeximmortal');
+    expect(r).toBeDefined();
+    expect(r?.independentEndpointTest.result).toBe('not_performed');
+    expect(r?.platformReported.independentlyVerified).toBe(false);
+    expect(r?.platformReported.lastTested).toContain('2026-11-10');
+    const panel = listingObservationPanel(evidence);
+    expect(panel).toContain('Recorded evidence, not a live check.');
+    expect(panel).toContain('platform reported; last tested:');
   });
 });
