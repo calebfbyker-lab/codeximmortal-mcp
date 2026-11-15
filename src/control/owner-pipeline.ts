@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from 'express';
 import type { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
-import { ownerConsole, ownerOverview, type OwnerConsoleAnalytics } from './owner-console.js';
+import { commercePage, assessmentDetails } from './commerce-ui.js';
 import { LEAD_TRANSITION_POLICY, LeadTransitionError, PostgresLeadTransitions, type LeadTransitionCommand } from './owner-lead-transitions.js';
 import { prospectIntake, ProspectInputError } from './prospect-assistant.js';
 import type { AnalyticsStore, LeadStage } from './owner-analytics.js';
@@ -26,9 +26,7 @@ export function postgresPipelineWorkflow(pool: Pool, owner: string): PipelineWor
 const esc = (v: unknown) => String(v).replace(/[&<>"']/g, c => ({ '&': '&'+'amp;', '<': '&'+'lt;', '>': '&'+'gt;', '"': '&'+'quot;', "'": '&'+'#39;' })[c]!);
 const errors = new Set(['invalid_lead_transition','lead_command_conflict','lead_not_found','lead_stage_conflict']);
 
-/** Register after body parsers and guard definitions, BEFORE the existing root
- * handler. Guards are the owner's existing closures: no new auth/session.
- */
+/** Existing owner closures remain the only authentication and mutation guards. */
 export function registerOwnerPipeline(app: Express, options: {
   owner: string; revision: string; now: () => number;
   current: (req: Request) => { csrf: string; expires: number } | undefined;
@@ -41,32 +39,27 @@ export function registerOwnerPipeline(app: Express, options: {
     if (req.query.view !== 'pipeline') { next(); return; }
     const session = options.current(req);
     if (!session) { res.redirect(303, '/login'); return; }
-    let analytics: OwnerConsoleAnalytics | undefined;
-    if (options.analytics) {
-      try { analytics = { configured: true, pipeline: await options.analytics.pipeline() }; }
-      catch { analytics = { configured: true, databaseUnavailable: true }; }
-    }
-    const intake = options.analytics?.addLead ? '<section class=panel><div class=panel-head><h2>Prospect intake</h2></div><div class=panel-body><p>Record an observed opportunity. Source, identity and buying intent remain unverified. Rules-based assistance only; no messages are sent.</p><form method=post action=/leads/intake><input type=hidden name=csrf value="' + esc(session.csrf) + '"><label class=field>Name or reference <input name=name required maxlength=200></label><label class=field>Claimed source <input name=source required maxlength=64></label><label class=field>Expressed need <input name=need required maxlength=600></label><button class="btn btn--primary">Save prospect and fit assessment</button></form><p class=hint>Do not enter credentials or sensitive payloads. Repeated submissions create separate records; inspect the list before retrying an uncertain response.</p></div></section>' : '<p role=status>Prospect intake is unavailable because the lead store is not configured.</p>';
+    const intake = options.analytics?.addLead ? '<section class=panel><div class=panel-head><h2>Record an opportunity</h2></div><div class=panel-body><p>Rules-based assistance only; no messages are sent. Source, identity and buying intent remain unverified.</p><form class="prospect-form" method=post action=/leads/intake><input type=hidden name=csrf value="' + esc(session.csrf) + '"><label class=field>Name or reference <input name=name required maxlength=200></label><label class=field>Claimed source <input name=source required maxlength=64></label><label class="field wide">Expressed need <input name=need required maxlength=600></label><div class=wide><button class="btn btn--primary">Save prospect and fit assessment</button></div></form><p class=hint>Do not enter credentials or sensitive payloads. Repeated submissions create separate records; inspect before retrying an uncertain response.</p></div></section>' : '<p class=flash role=status>Prospect intake is unavailable because the lead store is not configured.</p>';
     let content: string;
-    if (!options.workflow) content = '<p role=alert>Lead transitions are not configured. No controls are enabled.</p>';
+    if (!options.workflow) content = '<p class=flash role=alert>Lead transitions are not configured. No controls are enabled.</p>';
     else {
       try {
         const leads = await options.workflow.list();
-        content = '<p>Owner approval only. Won is a pipeline label, not verified revenue. Latest 100 leads.</p>';
+        content = '<div class=toolbar><h2>Prospect records</h2><a class=btn href="/?view=pipeline">Refresh prospects</a></div><p class=hint>Latest 100 records. Won value is a pipeline label, not verified revenue. No aggregate currency totals are shown here.</p>';
         const message = typeof req.query.lead_status === 'string' ? req.query.lead_status : '';
         if (message === 'created') content += '<p role=status>Prospect saved. Its assessment is a draft, not verified buying intent.</p>';
         if (message === 'approved') content += '<p role=status>Approval request completed. Refresh confirms the current stage; the durable receipt is authoritative.</p>';
-        if (errors.has(message) || message === 'lead_store_unavailable') content += '<p role=alert>Transition not completed: ' + esc(message) + '. Refresh before retrying.</p>';
+        if (errors.has(message) || message === 'lead_store_unavailable') content += '<p class=flash role=alert>Transition not completed: ' + esc(message) + '. Refresh before retrying.</p>';
         content += leads.length ? leads.map(lead => {
           if (!Object.hasOwn(LEAD_TRANSITION_POLICY, lead.stage)) throw new Error('invalid_stage');
           const targets = LEAD_TRANSITION_POLICY[lead.stage] as readonly LeadStage[];
-          return '<section class=panel><div class=panel-body><h3>' + esc(lead.name) + '</h3><p><code>' + esc(lead.id) + '</code> / ' + esc(lead.stage) + '</p><p>Claimed source: ' + esc(lead.source ?? 'Unknown') + '</p>' + (lead.notes ? '<details><summary>Recorded evidence and assessment</summary><div class=panel-body><pre>' + esc(lead.notes) + '</pre></div></details>' : '') + (targets.length ?
-            '<form method=post action=/leads/transition><input type=hidden name=csrf value="' + esc(session.csrf) + '"><input type=hidden name=commandId value="' + randomUUID() + '"><input type=hidden name=leadId value="' + esc(lead.id) + '"><input type=hidden name=from value="' + esc(lead.stage) + '"><label>Next stage <select name=to required>' + targets.map(t => '<option value="' + t + '">' + t + '</option>').join('') + '</select></label><label class=field>Approval reason <input name=reason required maxlength=400></label><button class="btn btn--primary">Approve transition</button></form>' : '<p>Terminal stage. No transition permitted.</p>') + '</div></section>';
-        }).join('') : '<p>No leads recorded yet.</p>';
-      } catch { content = '<p role=alert>Lead store unavailable. No transition controls are enabled. Check migrations 005 and 006 locally.</p>'; }
+          return '<section class=panel><div class=panel-body><div class=record-head><h3>' + esc(lead.name) + '</h3><span class=badge>' + esc(lead.stage) + '</span></div><p class=hint>Claimed source: ' + esc(lead.source ?? 'Unknown') + ' / <code>' + esc(lead.id) + '</code></p>' + (lead.notes ? assessmentDetails(lead.notes) : '<p class=hint>No assessment recorded.</p>') + '<details><summary>Governed lead transitions</summary><div class=panel-body>' + (targets.length ?
+            '<form method=post action=/leads/transition><input type=hidden name=csrf value="' + esc(session.csrf) + '"><input type=hidden name=commandId value="' + randomUUID() + '"><input type=hidden name=leadId value="' + esc(lead.id) + '"><input type=hidden name=from value="' + esc(lead.stage) + '"><label class=field>Next stage <select name=to required>' + targets.map(t => '<option value="' + t + '">' + t + '</option>').join('') + '</select></label><label class=field>Approval reason <input name=reason required maxlength=400></label><button class="btn btn--primary">Approve transition</button></form>' : '<p>Terminal stage. No transition permitted.</p>') + '</div></details></div></section>';
+        }).join('') : '<section class=empty><h2>No leads recorded yet.</h2><p>Record an observed opportunity above. There is no background collector in this increment.</p></section>';
+      } catch { content = '<p class=flash role=alert>Lead store unavailable. No transition controls are enabled. Check migrations 005 and 006 locally.</p>'; }
     }
-    const base = ownerConsole(ownerOverview(options.owner, options.revision, options.now(), session.expires, options.taskQueueConnected ?? false), session.csrf, { view: 'pipeline' }, undefined, analytics);
-    res.type('html').send(base.replace('<footer class=note-foot>', '<section aria-label="Governed lead transitions"><h2>Governed lead transitions</h2>' + intake + content + '</section><footer class=note-foot>'));
+    const metadata = '<p class=hint>Configured revision: <code>' + esc(options.revision) + '</code> / Snapshot: ' + esc(new Date(options.now()).toISOString()) + '</p>';
+    res.type('html').send(commercePage('Prospects & pipeline', 'pipeline', metadata + intake + content));
   });
   app.post('/leads/intake', async (req, res) => {
     if (!options.guarded(req, res)) return;

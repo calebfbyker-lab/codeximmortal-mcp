@@ -1,23 +1,25 @@
 import type { Express, Request } from 'express';
 import { Pool } from 'pg';
 import { PostgresOwnerCommerceOrders } from './owner-commerce-orders.js';
+import { commerceCss, commercePage, escapeHtml as esc } from './commerce-ui.js';
 
 export type OwnerOrdersStore = Pick<PostgresOwnerCommerceOrders, 'list'>;
-const entities: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-const esc = (v: unknown) => String(v).replace(/[&<>"']/g, c => entities[c]!);
-function page(content: string) {
-  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Orders | CodexImmortal</title><link rel="stylesheet" href="/assets/owner.css"></head><body><main class="content"><nav aria-label="Owner navigation"><a href="/">Owner dashboard</a> / <a href="/orders" aria-current="page">Orders</a></nav><div class="page-head"><h1>External-agent orders</h1><p>Read-only standalone commerce records. Reservations are not proof of payment; receipt references are not reconciliation.</p></div>' + content + '</main></body></html>';
-}
+function page(content: string) { return commercePage('Orders & delivery', 'orders', content); }
 function render(data: Awaited<ReturnType<OwnerOrdersStore['list']>>) {
-  const rows = data.orders.map(o => '<tr>' + [o.jobId, o.buyerId, o.clientId, o.service, o.quoteId, o.status,
-    o.amountMinor + ' ' + o.currency + ' minor units', o.reservationState ?? 'Unavailable', o.receiptId ?? 'Unavailable',
-    o.attribution, o.paymentEvidence, o.reconciliation].map(v => '<td>' + esc(v) + '</td>').join('') + '</tr>').join('');
-  return page('<p class="hint">Up to 50 records, ordered by job ID descending, not creation time. No combined-currency total. Source and payment evidence are not inferred.</p><p><a class="btn" href="/orders">Refresh orders</a></p>' +
+  const rows = data.orders.map(o => {
+    const refs = [['Job', o.jobId], ['Quote', o.quoteId], ['Reservation', o.reservationState ?? 'Unavailable'],
+      ['Receipt reference', o.receiptId ?? 'Unavailable'], ['Attribution', o.attribution],
+      ['Payment evidence', o.paymentEvidence], ['Reconciliation', o.reconciliation]];
+    const details = '<details><summary>View references</summary><div class="panel-body"><dl>' + refs.map(([k,v]) => '<dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd>').join('') + '</dl></div></details>';
+    return '<tr><td>' + esc(o.service) + '</td><td><code>' + esc(o.buyerId) + '</code></td><td>' + esc(o.clientId) + '</td><td><span class="badge">' + esc(o.status) + '</span></td><td class="num">' + esc(o.amountMinor + ' ' + o.currency) + '<div class="hint">minor units</div></td><td>' + details + '</td></tr>';
+  }).join('');
+  return page('<p>Read-only standalone commerce records. Reservations are not proof of payment; receipt references are not reconciliation.</p><div class="toolbar"><p class="hint">Up to 50 records, ordered by job ID descending, not creation time. No combined-currency total.</p><a class="btn" href="/orders">Refresh orders</a></div>' +
     (rows ? '<div class="table-wrap"><table><caption>Standalone commerce orders</caption><thead><tr>' +
-      ['Job', 'Buyer', 'Client', 'Service', 'Quote', 'Status', 'Amount', 'Reservation', 'Receipt reference', 'Attribution', 'Payment evidence', 'Reconciliation'].map(v => '<th scope="col">' + v + '</th>').join('') +
+      ['Service', 'Buyer', 'Client', 'Delivery state', 'Amount', 'Details'].map(v => '<th scope="col">' + v + '</th>').join('') +
       '</tr></thead><tbody>' + rows + '</tbody></table></div>' : '<section class="empty"><h2>No orders found</h2><p>The configured commerce store returned no jobs.</p></section>'));
 }
 export function registerOwnerOrders(app: Express, current: (req: Request) => unknown, store?: OwnerOrdersStore) {
+  app.get('/assets/commerce.css', (_req, res) => { res.type('css').send(commerceCss); });
   app.get('/api/orders', async (req, res) => {
     if (!current(req)) { res.status(401).json({ error: 'unauthorized' }); return; }
     if (!store) { res.json({ configured: false, state: 'disabled' }); return; }
