@@ -19,6 +19,13 @@ export class SnapshotSinkError extends Error {
  * a silent keep-old would let a retry report success while the stored row
  * differs from the payload the caller received. Any disagreement fails the
  * transaction and surfaces as a sink error.
+ *
+ * A snapshot claiming complete coverage is cross-checked against its own plan
+ * data before the claim is persisted as verified: every plan must carry a
+ * parsed amount. This makes the stored flag internally consistent with the
+ * payload; it does NOT prove the capture saw every plan the source offers —
+ * that stronger guarantee requires independent verification (second capture
+ * or buyer attestation) and is tracked as an open production prerequisite.
  */
 export class PostgresSnapshotSink implements SnapshotSink {
   constructor(private readonly pool: Pick<Pool, "connect">) {}
@@ -33,6 +40,10 @@ export class PostgresSnapshotSink implements SnapshotSink {
       || !Number.isSafeInteger(provenance.fetchBytes) || provenance.fetchBytes < 0
       || !Number.isSafeInteger(provenance.extractedPlans) || provenance.extractedPlans < 0
       || provenance.rawContentType.length < 1 || provenance.rawContentType.length > 128) {
+      throw new SnapshotSinkError();
+    }
+    if (snapshot.coverage === "complete"
+      && (snapshot.plans.length === 0 || snapshot.plans.some(plan => plan.amount === null))) {
       throw new SnapshotSinkError();
     }
     const client = await this.pool.connect().catch(() => { throw new SnapshotSinkError(); });
