@@ -4,6 +4,7 @@ import { ownerConsole, ownerCss, ownerJs, ownerLogin, ownerOverview, type OwnerC
 import type { OwnerTask, OwnerTaskView } from './owner-task-queue.js';
 import type { OwnerGovernanceAgent, OwnerGovernanceView } from './owner-governance.js';
 import type { AnalyticsStore } from './owner-analytics.js';
+import { registerOwnerPipeline, type PipelineWorkflow } from './owner-pipeline.js';
 
 export interface OwnerConfig { origin: string; owner: string; saltHex: string; hashHex: string; revision: string }
 export interface OwnerTaskStore {
@@ -34,7 +35,7 @@ const knownTaskErrors = new Set([...configurationErrors, 'invalid_task_proposal'
   'task_capacity_reached', 'invalid_objective', 'invalid_baseline', 'task_transition_denied', 'owner_task_failed']);
 
 // Isolated single-process local console; never mounted by public http.ts.
-export function createOwnerControlApp(input?: OwnerConfig, now: () => number = Date.now, tasks?: OwnerTaskStore, governance?: OwnerGovernanceStore, analytics?: AnalyticsStore) {
+export function createOwnerControlApp(input?: OwnerConfig, now: () => number = Date.now, tasks?: OwnerTaskStore, governance?: OwnerGovernanceStore, analytics?: AnalyticsStore, workflow?: PipelineWorkflow) {
   if (!input || !/^[A-Za-z0-9_.@-]{1,100}$/.test(input.owner) ||
       !/^[a-f0-9]{32}$/.test(input.saltHex) || !/^[a-f0-9]{128}$/.test(input.hashHex) ||
       !/^[a-f0-9]{40}$/.test(input.revision)) throw new Error('owner_configuration_required');
@@ -56,7 +57,7 @@ export function createOwnerControlApp(input?: OwnerConfig, now: () => number = D
   app.get('/assets/owner.css', (_req, res) => { res.type('css').send(ownerCss); });
   app.get('/assets/owner.js', (_req, res) => { res.type('application/javascript').send(ownerJs); });
   app.use(express.json({ limit: '2kb', strict: true }));
-  app.use(express.urlencoded({ extended: false, limit: '2kb', parameterLimit: 5 }));
+  app.use(express.urlencoded({ extended: false, limit: '2kb', parameterLimit: 6 }));
   function current(req: Request) {
     if (session && session.expires <= now()) session = undefined;
     const cookie = req.headers.cookie ?? '';
@@ -124,6 +125,7 @@ export function createOwnerControlApp(input?: OwnerConfig, now: () => number = D
     try { res.json({ configured: true, revenue: await analytics.revenueSummary(30), pipeline: await analytics.pipeline() }); }
     catch { res.status(503).json({ error: 'analytics_unavailable' }); }
   });
+  registerOwnerPipeline(app, { owner, revision, now, current, guarded, workflow, analytics, taskQueueConnected: Boolean(tasks) });
   app.get('/', async (req, res) => {
     const s = current(req); if (!s) { res.redirect(303, '/login'); return; }
     let consoleTasks: OwnerConsoleTasks | undefined;

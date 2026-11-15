@@ -1,9 +1,9 @@
 import type { Express, Request, Response } from 'express';
 import type { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
-import { ownerConsole, ownerOverview } from './owner-console.js';
+import { ownerConsole, ownerOverview, type OwnerConsoleAnalytics } from './owner-console.js';
 import { LEAD_TRANSITION_POLICY, LeadTransitionError, PostgresLeadTransitions, type LeadTransitionCommand } from './owner-lead-transitions.js';
-import type { LeadStage } from './owner-analytics.js';
+import type { AnalyticsStore, LeadStage } from './owner-analytics.js';
 
 export interface PipelineLead { id: string; name: string; stage: LeadStage }
 export interface PipelineWorkflow {
@@ -14,6 +14,8 @@ export function postgresPipelineWorkflow(pool: Pool, owner: string): PipelineWor
   const transitions = new PostgresLeadTransitions(pool, owner);
   return {
     async list() {
+      // Missing migration 006 disables controls even when lead rows exist.
+      await pool.query('SELECT command_id FROM owner_control.owner_lead_transition_events LIMIT 0');
       const r = await pool.query('SELECT id::text, name, stage FROM owner_control.owner_leads ORDER BY updated_at DESC, id LIMIT 100');
       return r.rows as PipelineLead[];
     },
@@ -31,11 +33,18 @@ export function registerOwnerPipeline(app: Express, options: {
   current: (req: Request) => { csrf: string; expires: number } | undefined;
   guarded: (req: Request, res: Response) => unknown;
   workflow?: PipelineWorkflow;
+  analytics?: Pick<AnalyticsStore, 'pipeline'>;
+  taskQueueConnected?: boolean;
 }) {
   app.get('/', async (req, res, next) => {
     if (req.query.view !== 'pipeline') { next(); return; }
     const session = options.current(req);
     if (!session) { res.redirect(303, '/login'); return; }
+    let analytics: OwnerConsoleAnalytics | undefined;
+    if (options.analytics) {
+      try { analytics = { configured: true, pipeline: await options.analytics.pipeline() }; }
+      catch { analytics = { configured: true, databaseUnavailable: true }; }
+    }
     let content: string;
     if (!options.workflow) content = '<p role=alert>Lead transitions are not configured. No controls are enabled.</p>';
     else {
@@ -43,7 +52,7 @@ export function registerOwnerPipeline(app: Express, options: {
         const leads = await options.workflow.list();
         content = '<p>Owner approval only. Won is a pipeline label, not verified revenue. Latest 100 leads.</p>';
         const message = typeof req.query.lead_status === 'string' ? req.query.lead_status : '';
-        if (message === 'approved') content += '<p role=status>Lead transition approved.</p>';
+        if (message === 'approved') content += '<p role=status>Approval request completed. Refresh confirms the current stage; the durable receipt is authoritative.</p>';
         if (errors.has(message) || message === 'lead_store_unavailable') content += '<p role=alert>Transition not completed: ' + esc(message) + '. Refresh before retrying.</p>';
         content += leads.length ? leads.map(lead => {
           if (!Object.hasOwn(LEAD_TRANSITION_POLICY, lead.stage)) throw new Error('invalid_stage');
@@ -53,7 +62,7 @@ export function registerOwnerPipeline(app: Express, options: {
         }).join('') : '<p>No leads recorded yet.</p>';
       } catch { content = '<p role=alert>Lead store unavailable. No transition controls are enabled. Check migrations 005 and 006 locally.</p>'; }
     }
-    const base = ownerConsole(ownerOverview(options.owner, options.revision, options.now(), session.expires), session.csrf, { view: 'pipeline' });
+    const base = ownerConsole(ownerOverview(options.owner, options.revision, options.now(), session.expires, options.taskQueueConnected ?? false), session.csrf, { view: 'pipeline' }, undefined, analytics);
     res.type('html').send(base.replace('<footer class=note-foot>', '<section aria-label="Governed lead transitions"><h2>Governed lead transitions</h2>' + content + '</section><footer class=note-foot>'));
   });
   app.post('/leads/transition', async (req, res) => {
@@ -61,6 +70,10 @@ export function registerOwnerPipeline(app: Express, options: {
     if (!options.workflow) { res.status(503).json({ error: 'lead_store_unavailable' }); return; }
     const b = req.body ?? {};
     const form = Boolean(req.is('application/x-www-form-urlencoded'));
+    const expectedKeys = ['csrf', 'commandId', 'leadId', 'from', 'to', 'reason'];
+    if (Object.keys(b).some(key => !expectedKeys.includes(key)) || expectedKeys.some(key => typeof b[key] !== 'string')) {
+      res.status(400).json({ error: 'invalid_lead_transition' }); return;
+    }
     try {
       const result = await options.workflow.approve({ commandId: b.commandId, leadId: b.leadId, from: b.from, to: b.to, reason: b.reason });
       if (form) res.redirect(303, '/?view=pipeline&lead_status=approved');

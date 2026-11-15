@@ -6,6 +6,7 @@ import { createOwnerControlApp } from './owner-app.js';
 import { localOwnerTaskPool, OwnerTaskQueue } from './owner-task-queue.js';
 import { OwnerGovernance } from './owner-governance.js';
 import { PostgresAnalyticsStore } from './owner-analytics.js';
+import { postgresPipelineWorkflow } from './owner-pipeline.js';
 
 export function localOwnerConfig(env: NodeJS.ProcessEnv) {
   const password = env.CODEX_OWNER_LOCAL_PASSWORD ?? '';
@@ -27,9 +28,10 @@ async function main() {
   const queue = taskPool ? new OwnerTaskQueue(taskPool, 'owner') : undefined;
   const governance = taskPool ? new OwnerGovernance(taskPool, 'owner') : undefined;
   const analytics = taskPool ? new PostgresAnalyticsStore(taskPool) : undefined;
+  const workflow = taskPool ? postgresPipelineWorkflow(taskPool, settings.app.owner) : undefined;
   const ca = readFileSync(settings.caFile);
   const server = createServer({ pfx: readFileSync(settings.pfxFile), passphrase: settings.passphrase,
-    minVersion: 'TLSv1.2' }, createOwnerControlApp(settings.app, Date.now, queue, governance, analytics));
+    minVersion: 'TLSv1.2' }, createOwnerControlApp(settings.app, Date.now, queue, governance, analytics, workflow));
   function probe(path: string, body?: string, cookie?: string) {
     return new Promise<{ status: number; text: string; cookie: string }>((resolve, reject) => {
       const req = request({ hostname: '127.0.0.1', port: 8443, servername: 'localhost', ca,
@@ -68,6 +70,7 @@ async function main() {
     console.log('Open https://localhost:8443/login ; username: owner ; use the password entered locally.');
     console.log(queue ? 'Owner task queue connected to the configured local database. Use the Tasks view to propose, approve, cancel, pause and resume tasks.' : 'Task queue not configured; the Tasks view shows the not-configured state.');
     console.log(analytics ? 'Analytics views (Revenue, Pipeline) read the owner-local cache; populate it with node dist/control/owner-stripe-sync.js.' : 'Analytics not configured; the Revenue and Pipeline views show the not-configured state.');
+    console.log(workflow ? 'Pipeline approval controls require migrations 005 and 006; no migrations are applied by this launcher.' : 'Lead transitions not configured.');
     console.log('Workers and verifiers stay separate local CLI processes; this process never executes tasks. Ctrl+C stops it.');
     process.once('SIGINT', stop); process.once('SIGTERM', stop);
   } catch { password = ''; stop(); throw new Error('owner_local_start_failed'); }
