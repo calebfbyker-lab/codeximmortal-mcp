@@ -1,8 +1,9 @@
 import express, { type ErrorRequestHandler, type Request, type Response } from 'express';
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
-import { ownerConsole, ownerCss, ownerJs, ownerLogin, ownerOverview, type OwnerConsoleTasks } from './owner-console.js';
+import { ownerConsole, ownerCss, ownerJs, ownerLogin, ownerOverview, type OwnerConsoleAnalytics, type OwnerConsoleTasks } from './owner-console.js';
 import type { OwnerTask, OwnerTaskView } from './owner-task-queue.js';
 import type { OwnerGovernanceAgent, OwnerGovernanceView } from './owner-governance.js';
+import type { AnalyticsStore } from './owner-analytics.js';
 
 export interface OwnerConfig { origin: string; owner: string; saltHex: string; hashHex: string; revision: string }
 export interface OwnerTaskStore {
@@ -33,7 +34,7 @@ const knownTaskErrors = new Set([...configurationErrors, 'invalid_task_proposal'
   'task_capacity_reached', 'invalid_objective', 'invalid_baseline', 'task_transition_denied', 'owner_task_failed']);
 
 // Isolated single-process local console; never mounted by public http.ts.
-export function createOwnerControlApp(input?: OwnerConfig, now: () => number = Date.now, tasks?: OwnerTaskStore, governance?: OwnerGovernanceStore) {
+export function createOwnerControlApp(input?: OwnerConfig, now: () => number = Date.now, tasks?: OwnerTaskStore, governance?: OwnerGovernanceStore, analytics?: AnalyticsStore) {
   if (!input || !/^[A-Za-z0-9_.@-]{1,100}$/.test(input.owner) ||
       !/^[a-f0-9]{32}$/.test(input.saltHex) || !/^[a-f0-9]{128}$/.test(input.hashHex) ||
       !/^[a-f0-9]{40}$/.test(input.revision)) throw new Error('owner_configuration_required');
@@ -117,6 +118,12 @@ export function createOwnerControlApp(input?: OwnerConfig, now: () => number = D
     try { res.json({ configured: true, ...await tasks.view() }); }
     catch { res.status(503).json({ error: 'owner_task_database_unavailable' }); }
   });
+  app.get('/api/analytics', async (req, res) => {
+    const s = current(req); if (!s) { res.status(401).json({ error: 'unauthorized' }); return; }
+    if (!analytics) { res.json({ configured: false }); return; }
+    try { res.json({ configured: true, revenue: await analytics.revenueSummary(30), pipeline: await analytics.pipeline() }); }
+    catch { res.status(503).json({ error: 'analytics_unavailable' }); }
+  });
   app.get('/', async (req, res) => {
     const s = current(req); if (!s) { res.redirect(303, '/login'); return; }
     let consoleTasks: OwnerConsoleTasks | undefined;
@@ -130,8 +137,17 @@ export function createOwnerControlApp(input?: OwnerConfig, now: () => number = D
       }
       consoleTasks = { configured: true, view, databaseUnavailable, proposeKey: randomUUID(), governance: gov };
     }
+    let consoleAnalytics: OwnerConsoleAnalytics | undefined;
+    if (analytics) {
+      const requested = typeof req.query.view === 'string' ? req.query.view : '';
+      try {
+        consoleAnalytics = requested === 'revenue' ? { configured: true, revenue: await analytics.revenueSummary(30) }
+          : requested === 'pipeline' ? { configured: true, pipeline: await analytics.pipeline() }
+          : { configured: true };
+      } catch { consoleAnalytics = { configured: true, databaseUnavailable: true }; }
+    }
     res.type('html').send(ownerConsole(ownerOverview(owner, revision, now(), s.expires, Boolean(tasks)), s.csrf,
-      { view: req.query.view, q: req.query.q, error: req.query.error }, consoleTasks));
+      { view: req.query.view, q: req.query.q, error: req.query.error }, consoleTasks, consoleAnalytics));
   });
   app.post('/tasks/propose', async (req, res) => {
     if (!guarded(req, res)) return;
