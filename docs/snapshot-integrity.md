@@ -1,9 +1,9 @@
 # Snapshot integrity: P0 items 1-3
 
-Status: implemented and covered by a dedicated no-database vitest suite; NOT
-executed. No build, test run, migration or deployment has been performed for
-this change. The branch also carries the unexecuted Stage 8 and safe-fetch
-suites.
+Status: implemented, correctively patched, and covered by no-database
+vitest suites; NOT executed. No build, test run, migration or deployment has
+been performed for any of this. The branch also carries the unexecuted Stage 8
+and safe-fetch suites.
 
 ## Item 1 — Original-source evidence
 
@@ -15,9 +15,9 @@ suites.
   with invalid_source_content.
 - extractPlans pairs each parsed offer with its original span; the excerpt is
   always the raw body slice, never a regenerated string.
-- Evidence (contracts.ts) now carries sourceStart/sourceEnd alongside text and
+- Evidence (contracts.ts) carries sourceStart/sourceEnd alongside text and
   token; evidence.ts validates the span fields (0 <= start < end, span <= 16384)
-  and was rewritten regex-free with identical token semantics.
+  and is implemented without regexes.
 - Consequence: previously persisted evidence (text/token only) no longer
   validates; no producer of that shape exists in the repo. Document
   extraction (P0 item 6) must supply spans when implemented.
@@ -33,8 +33,7 @@ suites.
   inside the same transaction after insert-on-conflict and compares them with
   the retry via canonicalJson (recursive key-sorted form, so jsonb key
   reordering cannot cause false disagreement). Any mismatch rolls back and
-  surfaces as snapshot_sink_failed: a retry can no longer report success while
-  the stored row differs from the payload the caller received.
+  surfaces as snapshot_sink_failed.
 
 ## Item 3 — Consistent paired reads and coverage trust
 
@@ -42,24 +41,48 @@ suites.
   single consistent read of both snapshots) and falls back to sequential reads
   verified by re-read: immutable rows must return identical values on both
   reads or the worker fails closed with inconsistent_snapshot_pair (502).
+- A single-statement consistent pair read already exists in
+  PostgresSnapshotRepository.findOwnedPair (snapshot-repository.ts); wiring it
+  into the production Providers construction is a pending follow-up.
 - completeTrusted remains strictly boolean-gated: compareSnapshots emits
   plan_added/plan_removed only when the corresponding coverage is complete,
   non-empty, and explicitly trusted; otherwise plan_first_observed /
-  plan_not_observed. Unverified complete coverage never licenses an inference.
+  plan_not_observed.
+
+## Corrective patch (code review findings, still unexecuted)
+
+1. evidence.ts standaloneNumbers: the numeric run now consumes a leading sign
+   before scanning digits and skips zero-length runs defensively — a signed
+   number like "Price: -10" could previously stall the scan at the sign with no
+   progress.
+2. pricing-snapshot.test.ts, document-extract.test.ts and
+   pricing-compare.test.ts fixtures migrated to span-carrying evidence; the
+   old shape fails invalid_fields by design.
+3. snapshot-integrity.test.ts: the sink fixture now models the real pg result
+   shape (rows[0].payload) and uses coherent span bounds; added a non-stall
+   regression test for signed numbers.
+4. safe-fetch.ts: the connect call is raced against abort so a non-settling
+   connection can never stall a fetch (the durable worker's outer 30s timeout
+   is a backstop, not the only defense); response streams are now disposed on
+   redirect-limit, invalid-redirect, upstream-unavailable and
+   invalid-source-status paths, not only on redirect and read failure.
+5. postgres-snapshot-sink.ts: a complete-coverage claim is cross-checked
+   against its own plan data (every plan must carry a parsed amount) before
+   the verified flag is persisted.
 
 ## Honest limits
 
-- The span scanner is character-based and rejects scientific-notation amounts
-  it cannot verify as standalone numbers; such sources fail closed.
-- The fallback re-read detects store drift but is not a substitute for a
-  transactional pair read; the Postgres source store should implement
-  snapshotPair (P0 item 5 territory) to get single-transaction consistency.
-- Existing suites that assert the old evidence shape, old sink SQL sequence, or
-  old plan id format may need updating; nothing has been executed yet.
-- P0 items 4-8 status: item 4 (fetch hardening) implemented unexecuted; items
-  5-8 (ownership bridge, document extraction, commerce integrity, release
-  evidence) remain open.
-- Unexecuted: after npm.cmd run build, run npm.cmd exec -- vitest run
-  src/agent-services/snapshot-integrity.test.ts as part of the guarded local
-  procedure, with zero skips. Local success is not remote CI success; GitHub
-  Actions remains unverified.
+- The complete-coverage cross-check makes the stored flag internally
+  consistent with the payload; it does NOT prove the capture saw every plan
+  the source offers. That stronger guarantee needs independent verification
+  (a second capture or buyer attestation) and remains an open production
+  prerequisite.
+- The span scanner rejects scientific-notation amounts it cannot verify as
+  standalone numbers; such sources fail closed.
+- The worker fallback re-read detects store drift but is not a transactional
+  pair read; production wiring should use
+  PostgresSnapshotRepository.findOwnedPair.
+- All of this is unexecuted: after npm.cmd run build, run npm.cmd exec --
+  vitest run src/agent-services/snapshot-integrity.test.ts plus the full
+  suite as part of the guarded local procedure, with zero skips. Local
+  success is not remote CI success; GitHub Actions remains unverified.
