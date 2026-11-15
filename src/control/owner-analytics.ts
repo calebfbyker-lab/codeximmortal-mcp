@@ -34,7 +34,12 @@ export interface AnalyticsStore {
 }
 
 const LEAD_STAGES: LeadStage[] = ['new', 'qualified', 'engaged', 'won', 'lost'];
-const safeInt = (value: unknown, fallback = 0) => typeof value === 'number' && Number.isSafeInteger(value) ? value : fallback;
+// pg returns bigint aggregates as strings; accept both forms.
+const safeInt = (value: unknown, fallback = 0) => {
+  if (typeof value === 'number' && Number.isSafeInteger(value)) return value;
+  if (typeof value === 'string' && /^-?[0-9]{1,15}$/.test(value)) return Number(value);
+  return fallback;
+};
 
 /**
  * Read-mostly analytics over the owner-local database cache. Revenue data is
@@ -73,7 +78,7 @@ export class PostgresAnalyticsStore implements AnalyticsStore {
     return {
       currency: String(row?.currency ?? 'USD').toUpperCase(),
       grossMinor: safeInt(row?.gross), refundMinor: safeInt(row?.refunds),
-      feeMinor: safeInt(row?.feees ?? row?.fees), netMinor: safeInt(row?.net),
+      feeMinor: safeInt(row?.fees), netMinor: safeInt(row?.net),
       eventCount: safeInt(row?.events),
       byDay: byDay.rows.map((r: Record<string, unknown>) => ({ day: String(r.day), netMinor: safeInt(r.net) })),
     };
