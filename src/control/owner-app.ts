@@ -3,6 +3,7 @@ import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from
 import { ownerConsole, ownerCss, ownerJs, ownerLogin, ownerOverview, type OwnerConsoleAnalytics, type OwnerConsoleTasks } from './owner-console.js';
 import type { OwnerTask, OwnerTaskView } from './owner-task-queue.js';
 import type { OwnerGovernanceAgent, OwnerGovernanceView } from './owner-governance.js';
+import { registerOwnerOrders, type OwnerOrdersStore } from './owner-orders-http.js';
 import type { AnalyticsStore } from './owner-analytics.js';
 import { registerOwnerPipeline, type PipelineWorkflow } from './owner-pipeline.js';
 
@@ -35,7 +36,7 @@ const knownTaskErrors = new Set([...configurationErrors, 'invalid_task_proposal'
   'task_capacity_reached', 'invalid_objective', 'invalid_baseline', 'task_transition_denied', 'owner_task_failed']);
 
 // Isolated single-process local console; never mounted by public http.ts.
-export function createOwnerControlApp(input?: OwnerConfig, now: () => number = Date.now, tasks?: OwnerTaskStore, governance?: OwnerGovernanceStore, analytics?: AnalyticsStore, workflow?: PipelineWorkflow) {
+export function createOwnerControlApp(input?: OwnerConfig, now: () => number = Date.now, tasks?: OwnerTaskStore, governance?: OwnerGovernanceStore, analytics?: AnalyticsStore, workflow?: PipelineWorkflow, orders?: OwnerOrdersStore) {
   if (!input || !/^[A-Za-z0-9_.@-]{1,100}$/.test(input.owner) ||
       !/^[a-f0-9]{32}$/.test(input.saltHex) || !/^[a-f0-9]{128}$/.test(input.hashHex) ||
       !/^[a-f0-9]{40}$/.test(input.revision)) throw new Error('owner_configuration_required');
@@ -125,6 +126,7 @@ export function createOwnerControlApp(input?: OwnerConfig, now: () => number = D
     try { res.json({ configured: true, revenue: await analytics.revenueSummary(30), pipeline: await analytics.pipeline() }); }
     catch { res.status(503).json({ error: 'analytics_unavailable' }); }
   });
+  registerOwnerOrders(app, current, orders);
   registerOwnerPipeline(app, { owner, revision, now, current, guarded, workflow, analytics, taskQueueConnected: Boolean(tasks) });
   app.get('/', async (req, res) => {
     const s = current(req); if (!s) { res.redirect(303, '/login'); return; }
@@ -149,7 +151,7 @@ export function createOwnerControlApp(input?: OwnerConfig, now: () => number = D
       } catch { consoleAnalytics = { configured: true, databaseUnavailable: true }; }
     }
     res.type('html').send(ownerConsole(ownerOverview(owner, revision, now(), s.expires, Boolean(tasks)), s.csrf,
-      { view: req.query.view, q: req.query.q, error: req.query.error }, consoleTasks, consoleAnalytics));
+      { view: req.query.view, q: req.query.q, error: req.query.error }, consoleTasks, consoleAnalytics).replace('</nav>', '<a href="/orders">Orders</a></nav>'));
   });
   app.post('/tasks/propose', async (req, res) => {
     if (!guarded(req, res)) return;
