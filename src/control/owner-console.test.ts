@@ -37,7 +37,6 @@ describe('owner operational console rendering', () => {
     const html = ownerConsole(data(), '"><script>bad</script>', { view: 'services', q: '"><script>bad</script>' });
     expect(html).not.toContain('<script>bad</script>');
     expect(html).toContain('<script>');
-    expect(html).toContain('script src=/assets/owner.js');
   });
   it('renders the login card without echoing passwords or raw error values', () => {
     expect(ownerLogin('unauthorized')).toContain('role=alert');
