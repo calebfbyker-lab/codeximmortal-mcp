@@ -190,13 +190,12 @@ function httpsConnect(target: ResolvedTarget, signal: AbortSignal): Promise<Fetc
   return new Promise<FetchResponse>((resolve, reject) => {
     const request = httpsRequest({
       host: target.ip,
-      port: target.url.port ? Number(target.url.port) : 443,
+      port: target.url.port || "443",
       path: target.url.pathname + target.url.search,
       method: "GET",
       servername: target.url.hostname,
       minVersion: "TLSv1.2",
       rejectUnauthorized: true,
-      ALPNProtocols: ["http/1.1"],
       signal,
       headers: {
         host: target.url.host,
@@ -217,8 +216,10 @@ function headerValue(headers: FetchResponse["headers"], name: string): string | 
 }
 
 function disposeStream(stream: AsyncIterable<Uint8Array>): void {
-  const disposable = stream as unknown as { destroy?: (error?: Error) => void };
-  try { disposable.destroy?.(new Error("fetch_stream_disposed")); } catch { /* disposal is best effort */ }
+  // Destroy without an error argument: passing one would emit an 'error'
+  // event that listener-less streams (and test fixtures) surface as unhandled.
+  const disposable = stream as unknown as { destroy?: () => void };
+  try { disposable.destroy?.(); } catch { /* disposal is best effort */ }
 }
 
 async function readAll(stream: AsyncIterable<Uint8Array>, maxBytes: number, signal: AbortSignal): Promise<string> {
@@ -246,10 +247,10 @@ const REDIRECTS = new Set([301, 302, 303, 307, 308]);
  * byte-exact private-range policy, connection pinned to the validated IP with
  * SNI preserved and TLS 1.2 as the floor, the connect call raced against abort
  * so a non-settling connection can never stall the fetch, bounded redirects
- * each fully re-validated, response streams disposed on redirect, abort and
- * failure, byte and time limits, and caller-signal cancellation. 4xx results
- * are terminal provider rejections; network/timeout failures are transient
- * and left to the durable worker's retry policy.
+ * each fully re-validated, response streams cleanly disposed on redirect,
+ * abort and failure, byte and time limits, and caller-signal cancellation.
+ * 4xx results are terminal provider rejections; network/timeout failures are
+ * transient and left to the durable worker's retry policy.
  */
 export class SafeFetchAdapter implements SafePageFetch {
   private readonly resolve: NonNullable<SafeFetchDeps["resolve"]>;
