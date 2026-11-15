@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS owner_control.owner_revenue_events (
   description text NOT NULL DEFAULT '',
   UNIQUE (source, event_id)
 );
-CREATE INDEX IF NOT EXISTS owner_control.owner_revenue_events_occurred_at_idx
+CREATE INDEX IF NOT EXISTS owner_revenue_events_occurred_at_idx
   ON owner_control.owner_revenue_events (occurred_at DESC);
 CREATE TABLE IF NOT EXISTS owner_control.owner_leads (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -23,4 +23,4 @@ CREATE TABLE IF NOT EXISTS owner_control.owner_leads (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS owner_control.owner_leads_stage_idx ON owner_control.owner_leads (stage);
+CREATE INDEX IF NOT EXISTS owner_leads_stage_idx ON owner_control.owner_leads (stage);
