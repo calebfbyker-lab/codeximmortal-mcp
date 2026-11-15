@@ -244,11 +244,12 @@ const REDIRECTS = new Set([301, 302, 303, 307, 308]);
  * SafePageFetch implementation for the snapshot provider. HTTPS only, DNS
  * resolution bounded (time and record count) and validated against the
  * byte-exact private-range policy, connection pinned to the validated IP with
- * SNI preserved and TLS 1.2 as the floor, bounded redirects each fully
- * re-validated, response streams disposed on redirect, abort and failure,
- * byte and time limits, and caller-signal cancellation. 4xx results are
- * terminal provider rejections; network/timeout failures are transient and
- * left to the durable worker's retry policy.
+ * SNI preserved and TLS 1.2 as the floor, the connect call raced against abort
+ * so a non-settling connection can never stall the fetch, bounded redirects
+ * each fully re-validated, response streams disposed on redirect, abort and
+ * failure, byte and time limits, and caller-signal cancellation. 4xx results
+ * are terminal provider rejections; network/timeout failures are transient
+ * and left to the durable worker's retry policy.
  */
 export class SafeFetchAdapter implements SafePageFetch {
   private readonly resolve: NonNullable<SafeFetchDeps["resolve"]>;
@@ -290,17 +291,31 @@ export class SafeFetchAdapter implements SafePageFetch {
       let current = validateFetchUrl(url);
       for (let redirects = 0; ; redirects++) {
         const target = await resolveTarget(current, this.resolve, this.dnsTimeoutMs, this.maxDnsRecords);
-        const response = await this.connect(target, controller.signal);
+        // Race the connection against abort so a non-settling connect can
+        // never stall the fetch; the durable worker's outer timeout is a
+        // backstop, not the only defense.
+        const response = await Promise.race([
+          this.connect(target, controller.signal),
+          new Promise<never>((_resolve, reject) => {
+            controller.signal.addEventListener("abort", () => reject(new SafeFetchError(timedOut ? "fetch_timeout" : "fetch_aborted")), { once: true });
+          }),
+        ]);
         if (REDIRECTS.has(response.status)) {
+          disposeStream(response.stream);
           if (redirects >= this.maxRedirects) throw new SafeFetchError("fetch_too_many_redirects");
           const location = headerValue(response.headers, "location");
           if (!location) throw new SafeFetchError("fetch_invalid_redirect");
-          disposeStream(response.stream);
           current = validateFetchUrl(new URL(location, current).href);
           continue;
         }
-        if (response.status === 0 || response.status >= 500) throw new SafeFetchError("fetch_upstream_unavailable");
-        if (response.status < 200 || response.status >= 400) throw new ApiError(422, "invalid_source_status");
+        if (response.status === 0 || response.status >= 500) {
+          disposeStream(response.stream);
+          throw new SafeFetchError("fetch_upstream_unavailable");
+        }
+        if (response.status < 200 || response.status >= 400) {
+          disposeStream(response.stream);
+          throw new ApiError(422, "invalid_source_status");
+        }
         const body = await readAll(response.stream, this.maxBytes, controller.signal);
         const contentType = headerValue(response.headers, "content-type") ?? "application/octet-stream";
         return { body, contentType: contentType.slice(0, 128) };
