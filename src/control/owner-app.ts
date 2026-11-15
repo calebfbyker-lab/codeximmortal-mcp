@@ -1,6 +1,7 @@
 import express, { type ErrorRequestHandler, type Request, type Response } from 'express';
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { ownerConsole, ownerCss, ownerJs, ownerLogin, ownerOverview, type OwnerConsoleAnalytics, type OwnerConsoleTasks } from './owner-console.js';
+import { ownerLayoutCss } from './owner-layout.js';
 import type { OwnerTask, OwnerTaskView } from './owner-task-queue.js';
 import type { OwnerGovernanceAgent, OwnerGovernanceView } from './owner-governance.js';
 import { registerOwnerOrders, type OwnerOrdersStore } from './owner-orders-http.js';
@@ -55,7 +56,7 @@ export function createOwnerControlApp(input?: OwnerConfig, now: () => number = D
   });
   // Only static, non-sensitive CSS and the console enhancement script are public.
   // All overview data requires a valid session.
-  app.get('/assets/owner.css', (_req, res) => { res.type('css').send(ownerCss); });
+  app.get('/assets/owner.css', (_req, res) => { res.type('css').send(ownerCss + '\n' + ownerLayoutCss); });
   app.get('/assets/owner.js', (_req, res) => { res.type('application/javascript').send(ownerJs); });
   app.use(express.json({ limit: '2kb', strict: true }));
   app.use(express.urlencoded({ extended: false, limit: '2kb', parameterLimit: 6 }));
