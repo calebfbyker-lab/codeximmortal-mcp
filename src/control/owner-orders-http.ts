@@ -3,10 +3,11 @@ import { Pool } from 'pg';
 import { PostgresOwnerCommerceOrders } from './owner-commerce-orders.js';
 import { distributionPanel, localDistributionInventory } from './distribution-inventory.js';
 import { commerceCss, commercePage, escapeHtml as esc } from './commerce-ui.js';
+import { registerOwnerDistribution } from './owner-distribution-http.js';
 
 export type OwnerOrdersStore = Pick<PostgresOwnerCommerceOrders, 'list'>;
 function page(content: string) {
-  return commercePage('Orders & delivery', 'orders', content + distributionPanel(), {
+  return commercePage('Orders & delivery', 'orders', content + '<p><a class="btn" href="/distribution">Open Distribution &amp; demand workspace</a></p>' + distributionPanel(), {
     description: 'Review delivery state and transaction references. Reservations are not proof of payment.',
     refreshHref: '/orders'
   });
@@ -25,6 +26,7 @@ function render(data: Awaited<ReturnType<OwnerOrdersStore['list']>>) {
       '</tr></thead><tbody>' + rows + '</tbody></table></div>' : '<section class="empty"><h2>No orders found</h2><p>The configured commerce store returned no jobs.</p></section>'));
 }
 export function registerOwnerOrders(app: Express, current: (req: Request) => unknown, store?: OwnerOrdersStore) {
+  registerOwnerDistribution(app, current);
   app.get('/assets/commerce.css', (_req, res) => { res.type('css').send(commerceCss); });
   app.get('/api/distribution', (req, res) => {
     if (!current(req)) { res.status(401).json({ error: 'unauthorized' }); return; }

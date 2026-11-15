@@ -17,16 +17,16 @@ export const commerceCss = baseCommerceCss + '\n' + ownerLayoutCss + `
 export const escapeHtml = (v: unknown) => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 interface CommercePageOptions {
   description?: string;
-  refreshHref?: '/orders' | '/?view=pipeline';
+  refreshHref?: '/orders' | '/?view=pipeline' | '/distribution';
 }
 /** content is trusted HTML produced by application renderers, never raw user input. */
-export function commercePage(title: string, active: 'pipeline' | 'orders', content: string, options: CommercePageOptions = {}) {
-  const links = [['/', 'Overview', 'overview'], ['/orders', 'Orders & delivery', 'orders'], ['/?view=pipeline', 'Prospects & pipeline', 'pipeline'], ['/?view=tasks', 'Owner tasks', 'tasks'], ['/?view=revenue', 'Financial activity', 'revenue']] as const;
-  const nav = links.map(([href,label,key]) => '<a href="' + href + '"' + (key === active ? ' aria-current="page"' : '') + '>' + label + '</a>').join('');
-  const descriptions = { orders: 'Inspect recorded commerce jobs, delivery state, and supporting references.', pipeline: 'Record opportunities, inspect evidence, and approve permitted stage changes.' };
+export function commercePage(title: string, active: 'pipeline' | 'orders' | 'distribution', content: string, options: CommercePageOptions = {}) {
+  const links = [['/', 'Overview', 'overview'], ['/distribution', 'Distribution & demand', 'distribution'], ['/orders', 'Orders & delivery', 'orders'], ['/?view=pipeline', 'Prospects & pipeline', 'pipeline'], ['/?view=tasks', 'Owner tasks', 'tasks'], ['/?view=revenue', 'Financial activity', 'revenue']] as const;
+  const nav = links.map(([href,label,key]) => '<a href="' + href + '"' + (key === active ? ' aria-current="page"' : '') + '>' + escapeHtml(label) + '</a>').join('');
+  const descriptions = { distribution: 'Inspect recorded listing evidence, product/channel coverage, and demand-data availability.', orders: 'Inspect recorded commerce jobs, delivery state, and supporting references.', pipeline: 'Record opportunities, inspect evidence, and approve permitted stage changes.' };
   const description = options.description ?? descriptions[active];
   const refresh = options.refreshHref;
-  if (refresh !== undefined && refresh !== '/orders' && refresh !== '/?view=pipeline') throw new Error('invalid_commerce_refresh_route');
+  if (refresh !== undefined && refresh !== '/orders' && refresh !== '/?view=pipeline' && refresh !== '/distribution') throw new Error('invalid_commerce_refresh_route');
   const actions = refresh ? '<a class="btn" href="' + refresh + '">Refresh view</a>' : '';
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escapeHtml(title) + ' | CodexImmortal</title><link rel="stylesheet" href="/assets/commerce.css"></head><body><a class="skip" href="#main-content">Skip to content</a><div class="workspace"><aside class="side"><div class="brand">CodexImmortal</div><div class="sub">Owner workspace</div><nav aria-label="Owner navigation">' + nav + '</nav></aside><div class="main"><header class="topbar"><span>Commercial operations</span><span class="muted">Local owner console</span></header><main id="main-content" class="content" tabindex="-1"><div class="page-head"><div><h1>' + escapeHtml(title) + '</h1><p class="page-description">' + escapeHtml(description) + '</p></div><div class="page-actions">' + actions + '</div></div>' + content + '<footer class="note-foot">Recorded states are not proof of payment, delivery, profitability or agent autonomy. <a href="/">Return to overview</a></footer></main></div></div></body></html>';
 }
