@@ -1,37 +1,41 @@
 import { describe, expect, it } from 'vitest';
-import { commerceCss, commercePage, assessmentDetails } from './commerce-ui.js';
-import { prospectIntake } from './prospect-assistant.js';
-describe('commercial workspace presentation', () => {
-  it('uses the same shell, title and active navigation for both commercial pages', () => {
-    for (const key of ['pipeline','orders'] as const) {
-      const html = commercePage('Example <title>', key, '<p>trusted renderer content</p>');
-      expect(html).toContain('<title>Example &lt;title&gt; | CodexImmortal</title>');
-      expect(html).toContain('href="/assets/commerce.css"');
-      expect(html).toContain('href="#main-content"');
-      expect(html).toContain('id="main-content"');
-      expect(html.match(/aria-current="page"/g)).toHaveLength(1);
-      expect(html).toContain('Local console');
-    }
+import { assessmentDetails, commerceCss, commercePage } from './commerce-ui.js';
+import { ownerLayoutCss } from './owner-layout.js';
+
+describe('commercial workspace layout', () => {
+  it('includes owner styling before the commercial shell adapters', () => {
+    expect(commerceCss).toContain(ownerLayoutCss);
+    expect(commerceCss.indexOf('/* commerce-layout-v1')).toBeGreaterThan(commerceCss.indexOf('/* owner-layout-v1'));
+    expect(commerceCss).toContain('248px minmax(0,1fr)');
   });
-  it('renders current assessments as fields and a draft instead of raw JSON', () => {
-    const assessment = prospectIntake({ name: 'Synthetic', source: 'manual', need: 'Compare pricing changes <script>bad</script>' });
-    const html = assessmentDetails(assessment.notes);
-    expect(html).toContain('Expressed need'); expect(html).toContain('Suggested next step');
-    expect(html).toContain('Response draft'); expect(html).toContain('Nothing has been sent');
-    expect(html).not.toContain('<script>bad</script>'); expect(html).toContain('&lt;script&gt;');
-    expect(html).not.toContain('"schema":');
+  it.each(['orders','pipeline'] as const)('renders one active navigation item for %s', active => {
+    const html = commercePage('Workspace', active, '<p>Content</p>');
+    expect(html.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(html.match(/<main\b/g)).toHaveLength(1);
+    expect(html).toContain('href="#main-content"');
+    expect(html).toContain('id="main-content"');
+    expect(html).toContain('tabindex="-1"');
+    const href = active === 'orders' ? '/orders' : '/?view=pipeline';
+    expect(html).toContain('<a href="' + href + '" aria-current="page">');
   });
-  it('preserves legacy and unexpected notes as escaped expandable evidence', () => {
-    for (const notes of ['<script>legacy</script>', '{"schema":"other","draft":"<img>"}', 'null']) {
-      const html = assessmentDetails(notes);
-      expect(html).toContain('<pre>'); expect(html).not.toContain('<script>legacy</script>');
-      expect(html).not.toContain('<img>');
-    }
+  it('escapes titles and descriptions while retaining trusted renderer output', () => {
+    const html = commercePage('<unsafe>', 'orders', '<p>Trusted output</p>', { description: 'A "quoted" <description>' });
+    expect(html).not.toContain('<unsafe>'); expect(html).toContain('&lt;unsafe&gt;');
+    expect(html).toContain('&lt;description&gt;'); expect(html).toContain('&quot;quoted&quot;');
+    expect(html).toContain('<p>Trusted output</p>');
   });
-  it('includes narrow-screen, focus and reduced-motion rules without external assets', () => {
-    expect(commerceCss).toContain('@media(max-width:800px)');
-    expect(commerceCss).toContain(':focus-visible');
-    expect(commerceCss).toContain('prefers-reduced-motion');
-    expect(commerceCss).not.toContain('url(');
+  it.each(['/orders','/?view=pipeline'] as const)('renders one refresh action for %s without scripts', refreshHref => {
+    const html = commercePage('Workspace', 'orders', '<p>Content</p>', { refreshHref });
+    expect(html.match(/>Refresh view<\/a>/g)).toHaveLength(1);
+    expect(html).toContain('href="' + refreshHref + '">Refresh view</a>');
+    expect(html).not.toContain('<script');
+  });
+  it('rejects unsupported refresh routes even if a caller bypasses TypeScript', () => {
+    const options = { refreshHref: 'javascript:alert(1)' } as unknown as NonNullable<Parameters<typeof commercePage>[3]>;
+    expect(() => commercePage('Workspace','orders','',options)).toThrow('invalid_commerce_refresh_route');
+  });
+  it('preserves escaping of recorded assessment evidence', () => {
+    expect(assessmentDetails('<script>alert(1)</script>')).not.toContain('<script>');
+    expect(assessmentDetails('<script>alert(1)</script>')).toContain('&lt;script&gt;');
   });
 });

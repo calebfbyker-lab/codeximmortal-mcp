@@ -5,7 +5,12 @@ import { distributionPanel, localDistributionInventory } from './distribution-in
 import { commerceCss, commercePage, escapeHtml as esc } from './commerce-ui.js';
 
 export type OwnerOrdersStore = Pick<PostgresOwnerCommerceOrders, 'list'>;
-function page(content: string) { return commercePage('Orders & delivery', 'orders', content + distributionPanel()); }
+function page(content: string) {
+  return commercePage('Orders & delivery', 'orders', content + distributionPanel(), {
+    description: 'Review delivery state and transaction references. Reservations are not proof of payment.',
+    refreshHref: '/orders'
+  });
+}
 function render(data: Awaited<ReturnType<OwnerOrdersStore['list']>>) {
   const rows = data.orders.map(o => {
     const refs = [['Job', o.jobId], ['Quote', o.quoteId], ['Reservation', o.reservationState ?? 'Unavailable'],
@@ -14,7 +19,7 @@ function render(data: Awaited<ReturnType<OwnerOrdersStore['list']>>) {
     const details = '<details><summary>View references</summary><div class="panel-body"><dl>' + refs.map(([k,v]) => '<dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd>').join('') + '</dl></div></details>';
     return '<tr><td>' + esc(o.service) + '</td><td><code>' + esc(o.buyerId) + '</code></td><td>' + esc(o.clientId) + '</td><td><span class="badge">' + esc(o.status) + '</span></td><td class="num">' + esc(o.amountMinor + ' ' + o.currency) + '<div class="hint">minor units</div></td><td>' + details + '</td></tr>';
   }).join('');
-  return page('<p>Read-only standalone commerce records. Reservations are not proof of payment; receipt references are not reconciliation.</p><div class="toolbar"><p class="hint">Up to 50 records, ordered by job ID descending, not creation time. No combined-currency total.</p><a class="btn" href="/orders">Refresh orders</a></div>' +
+  return page('<p>Read-only standalone commerce records. Reservations are not proof of payment; receipt references are not reconciliation.</p><div class="toolbar"><p class="hint">Up to 50 records, ordered by job ID descending, not creation time. No combined-currency total.</p></div>' +
     (rows ? '<div class="table-wrap"><table><caption>Standalone commerce orders</caption><thead><tr>' +
       ['Service', 'Buyer', 'Client', 'Delivery state', 'Amount', 'Details'].map(v => '<th scope="col">' + v + '</th>').join('') +
       '</tr></thead><tbody>' + rows + '</tbody></table></div>' : '<section class="empty"><h2>No orders found</h2><p>The configured commerce store returned no jobs.</p></section>'));

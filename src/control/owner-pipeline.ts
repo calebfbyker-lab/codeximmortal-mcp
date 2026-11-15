@@ -45,7 +45,7 @@ export function registerOwnerPipeline(app: Express, options: {
     else {
       try {
         const leads = await options.workflow.list();
-        content = '<div class=toolbar><h2>Prospect records</h2><a class=btn href="/?view=pipeline">Refresh prospects</a></div><p class=hint>Latest 100 records. Won value is a pipeline label, not verified revenue. No aggregate currency totals are shown here.</p>';
+        content = '<div class=toolbar><h2>Prospect records</h2></div><p class=hint>Latest 100 records. Won value is a pipeline label, not verified revenue. No aggregate currency totals are shown here.</p>';
         const message = typeof req.query.lead_status === 'string' ? req.query.lead_status : '';
         if (message === 'created') content += '<p role=status>Prospect saved. Its assessment is a draft, not verified buying intent.</p>';
         if (message === 'approved') content += '<p role=status>Approval request completed. Refresh confirms the current stage; the durable receipt is authoritative.</p>';
@@ -59,7 +59,10 @@ export function registerOwnerPipeline(app: Express, options: {
       } catch { content = '<p class=flash role=alert>Lead store unavailable. No transition controls are enabled. Check migrations 005 and 006 locally.</p>'; }
     }
     const metadata = '<p class=hint>Configured revision: <code>' + esc(options.revision) + '</code> / Snapshot: ' + esc(new Date(options.now()).toISOString()) + '</p>';
-    res.type('html').send(commercePage('Prospects & pipeline', 'pipeline', metadata + intake + content));
+    res.type('html').send(commercePage('Prospects & pipeline', 'pipeline', metadata + intake + content, {
+      description: 'Record observed opportunities, inspect draft fit assessments, and approve allowed lead transitions.',
+      refreshHref: '/?view=pipeline'
+    }));
   });
   app.post('/leads/intake', async (req, res) => {
     if (!options.guarded(req, res)) return;
