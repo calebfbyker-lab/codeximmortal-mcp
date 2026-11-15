@@ -8,6 +8,7 @@ prices and deployment are unchanged.
 ## What this increment implements
 
 - A Tasks view in the isolated owner console, resolving identity from the existing verified session. No new identity surface, no public registration, no mounting in public http.ts.
+- A professional console redesign: design-token UI with a sidebar shell, sticky topbar with dispatch status and session countdown, stat cards, state-badged task tables with sticky headers, filter chips, relative timestamps, cancel confirmations, copy-to-clipboard for identifiers, idle auto-refresh on the Tasks view (paused while typing or hidden), humanized runtime metrics, and a branded login card. Enhancements ship as a CSP-gated static script at /assets/owner.js (script-src 'self'); every function degrades gracefully without JavaScript. No external assets, no inline handlers, all escaping and CSRF properties preserved.
 - POST /tasks/propose, /tasks/approve, /tasks/cancel, /tasks/pause, /tasks/resume and GET /api/tasks on the owner app only. Every mutation requires the exact configured HTTPS Origin, a valid session cookie and the session CSRF token. Forms redirect back to the Tasks view; JSON callers receive status codes.
 - Proposals carry a server-generated idempotency command key rendered into the form; identical retries do not duplicate a task.
 - Pause/resume persists in PostgreSQL. Pausing blocks new claims; accepted work may still submit and be verified.
@@ -44,4 +45,4 @@ Prepared, not executed by an assistant. New suites:
 - src/control/owner-tasks-http.integration.test.ts — real disposable PostgreSQL: live API state, proposal, approval with a persisted approval record, pause/resume persistence, verifier outcome display, cancellation fencing, owner isolation, governance chain.
 - src/control/owner-governance.integration.test.ts — real disposable PostgreSQL: seeding idempotency, floor rejection, version pinning, hash-mismatch fail-closed, versioning/superseding for other kinds, concurrent audit chain integrity with tamper detection, approval idempotency, heartbeats.
 
-No local build, test, migration or worker run was executed for this commit series. Run the guarded disposable-PostgreSQL procedure and the full suite before relying on any of it. Local success is not remote CI success; GitHub Actions remains unverified.
+The redesign at the branch head is unexecuted at the time of this note; run the full no-database suite (including owner-console.test.ts) as part of the guarded local procedure before relying on it. Local success is not remote CI success; GitHub Actions remains unverified.
