@@ -1,4 +1,4 @@
-import { listingObservationPanel } from './listing-observations.js';
+import { listingObservationPanel, recordedListingEvidence } from './listing-observations.js';
 import { createHash } from 'node:crypto';
 import { findProjectFile } from '../load-tools.js';
 import { escapeHtml as esc } from './commerce-ui.js';
@@ -57,14 +57,16 @@ export function distributionInventory(serverText: string, glamaText: string) {
   };
 }
 export function localDistributionInventory() {
-  try { return distributionInventory(findProjectFile('server.json'), findProjectFile('glama.json')); }
-  catch { throw new Error('distribution_inventory_unavailable'); }
+  try {
+    const local = distributionInventory(findProjectFile('server.json'), findProjectFile('glama.json'));
+    return { ...local, listingEvidence: recordedListingEvidence() };
+  } catch { throw new Error('distribution_inventory_unavailable'); }
 }
 export function distributionPanel() {
   try {
     const r = localDistributionInventory();
-    return '<section class="panel"><div class="panel-head"><h2>Distribution inventory</h2></div><div class="panel-body"><p class="hint">Local project checks only. No registry, endpoint or ownership verification was performed. Manifest presence is not publication.</p><dl><dt>Server</dt><dd>' + esc(r.serverName) + '</dd><dt>Version</dt><dd>' + esc(r.version) + '</dd><dt>Project checks</dt><dd>' + esc(r.validation) + '</dd><dt>Configured endpoints</dt><dd>' + esc(r.endpoints.join(', ') || 'Unavailable') + '</dd><dt>Official Registry</dt><dd>Not checked</dd><dt>Glama</dt><dd>Not checked</dd><dt>Endpoint readiness</dt><dd>Not checked</dd></dl>' +
+    return '<section class="panel"><div class="panel-head"><h2>Distribution inventory</h2></div><div class="panel-body"><p class="hint">Local project checks only. No registry, endpoint or ownership verification was performed by these checks. Manifest presence is not publication. Recorded third-party evidence is shown separately below.</p><dl><dt>Server</dt><dd>' + esc(r.serverName) + '</dd><dt>Version</dt><dd>' + esc(r.version) + '</dd><dt>Project checks</dt><dd>' + esc(r.validation) + '</dd><dt>Configured endpoints</dt><dd>' + esc(r.endpoints.join(', ') || 'Unavailable') + '</dd><dt>Official Registry local check</dt><dd>Not checked</dd><dt>Glama local check</dt><dd>Not checked</dd><dt>Endpoint readiness</dt><dd>Not checked</dd></dl>' +
       (r.issues.length ? '<p role="alert">Review: ' + r.issues.map(esc).join(', ') + '</p>' : '') +
-      '<details><summary>Manifest fingerprints</summary><div class="panel-body"><p>server.json: <code>' + r.manifestHashes.server + '</code></p><p>glama.json: <code>' + r.manifestHashes.glama + '</code></p></div></details><a href="/api/distribution">View local inventory JSON</a></div></section>' + listingObservationPanel();
+      '<details><summary>Manifest fingerprints</summary><div class="panel-body"><p>server.json: <code>' + r.manifestHashes.server + '</code></p><p>glama.json: <code>' + r.manifestHashes.glama + '</code></p></div></details><a href="/api/distribution">View local inventory JSON</a></div></section>' + listingObservationPanel(r.listingEvidence);
   } catch { return '<section class="flash" role="alert"><h2>Distribution inventory unavailable</h2><p>Local metadata could not be read. Orders remain a separate data source.</p></section>'; }
 }
