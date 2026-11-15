@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
-import { buildSnapshot, extractPlans, ProviderRejectedError } from "./snapshot-provider.js";
+import type { Pool } from "pg";
+import { buildSnapshot, extractPlans, ProviderRejectedError, type SnapshotProvenance } from "./snapshot-provider.js";
 import { validateAmountEvidence } from "./evidence.js";
 import { PostgresSnapshotSink, SnapshotSinkError } from "../persistence/postgres-snapshot-sink.js";
 import { executeService, type Providers } from "../agent-commerce/worker.js";
-import type { Comparison, Snapshot, SnapshotProvenance } from "./contracts.js";
+import type { Comparison, Snapshot } from "./contracts.js";
 import type { Principal } from "../agent-commerce/api.js";
 
 const planId = (name: string) => "plan-" + createHash("sha256").update(name).digest("hex").slice(0, 12);
 const source = { buyerId: "11111111-1111-4111-8111-111111111111", sourceId: "src-1", url: "https://example.test/plans", approvedForCapture: true };
 const principal = { buyerId: source.buyerId } as unknown as Principal;
+const asPool = (connect: () => Promise<unknown>) => ({ connect } as unknown as Pick<Pool, "connect">);
 
 function makeSnapshot(body: string, id: string, at: Date): Snapshot {
   return buildSnapshot(source, { body, contentType: "application/json" }, id, at);
@@ -49,7 +51,7 @@ describe("original-source evidence (P0 item 1)", () => {
     expect(() => validateAmountEvidence(10, { text: '{"amount":10}', token: "10" })).toThrow();
     expect(() => validateAmountEvidence(10, { text: "costs 100 dollars", token: "10", sourceStart: 0, sourceEnd: 17 })).toThrow("amount_evidence_mismatch");
     expect(() => validateAmountEvidence(10, { text: '{"amount":10}', token: "10", sourceStart: 5, sourceEnd: 5 })).toThrow("invalid_evidence_span");
-    expect(validateAmountEvidence(10, { text: "Price: -10 minus ten", token: "10", sourceStart: 0, sourceEnd: 20 })).toBeUndefined();
+    expect(() => validateAmountEvidence(10, { text: "Price: -10 minus ten", token: "10", sourceStart: 0, sourceEnd: 20 })).toThrow("amount_evidence_mismatch");
   });
 
   it("never stalls on a negative number run", () => {
@@ -107,7 +109,7 @@ describe("sink retry agreement (P0 item 2)", () => {
   it("commits when the persisted payload agrees with the retry", async () => {
     const snapshot = makeSnapshot(offersBody([{ name: "Pro", amount: 49 }]), "snap-1", new Date("2026-11-01T00:00:00.000Z"));
     const client = new FakeClient(snapshot, provenanceRow);
-    const sink = new PostgresSnapshotSink({ connect: async () => client });
+    const sink = new PostgresSnapshotSink(asPool(async () => client));
     await sink.persist(snapshot, source.buyerId, provenance);
     expect(client.statements.some(s => s.startsWith("COMMIT"))).toBe(true);
     expect(client.released).toBe(true);
@@ -117,7 +119,7 @@ describe("sink retry agreement (P0 item 2)", () => {
     const snapshot = makeSnapshot(offersBody([{ name: "Pro", amount: 49 }]), "snap-1", new Date("2026-11-01T00:00:00.000Z"));
     const reordered = { plans: snapshot.plans, coverage: snapshot.coverage, capturedAt: snapshot.capturedAt, sourceUrl: snapshot.sourceUrl, id: snapshot.id };
     const client = new FakeClient(reordered, provenanceRow);
-    const sink = new PostgresSnapshotSink({ connect: async () => client });
+    const sink = new PostgresSnapshotSink(asPool(async () => client));
     await expect(sink.persist(snapshot, source.buyerId, provenance)).resolves.toBeUndefined();
   });
 
@@ -125,7 +127,7 @@ describe("sink retry agreement (P0 item 2)", () => {
     const snapshot = makeSnapshot(offersBody([{ name: "Pro", amount: 49 }]), "snap-1", new Date("2026-11-01T00:00:00.000Z"));
     const different = makeSnapshot(offersBody([{ name: "Pro", amount: 59 }]), "snap-1", new Date("2026-11-02T00:00:00.000Z"));
     const client = new FakeClient(different, provenanceRow);
-    const sink = new PostgresSnapshotSink({ connect: async () => client });
+    const sink = new PostgresSnapshotSink(asPool(async () => client));
     await expect(sink.persist(snapshot, source.buyerId, provenance)).rejects.toThrow(SnapshotSinkError);
     expect(client.statements.some(s => s.startsWith("ROLLBACK"))).toBe(true);
     expect(client.statements.some(s => s.startsWith("COMMIT"))).toBe(false);
@@ -134,14 +136,17 @@ describe("sink retry agreement (P0 item 2)", () => {
   it("rolls back when stored provenance disagrees", async () => {
     const snapshot = makeSnapshot(offersBody([{ name: "Pro", amount: 49 }]), "snap-1", new Date("2026-11-01T00:00:00.000Z"));
     const client = new FakeClient(snapshot, { ...provenanceRow, content_sha256: "b".repeat(64) });
-    const sink = new PostgresSnapshotSink({ connect: async () => client });
+    const sink = new PostgresSnapshotSink(asPool(async () => client));
     await expect(sink.persist(snapshot, source.buyerId, provenance)).rejects.toThrow(SnapshotSinkError);
   });
 
   it("rejects malformed identities before connecting", async () => {
     const snapshot = makeSnapshot(offersBody([{ name: "Pro", amount: 49 }]), "snap-1", new Date("2026-11-01T00:00:00.000Z"));
     let connected = false;
-    const sink = new PostgresSnapshotSink({ connect: async () => { connected = true; return new FakeClient(snapshot, provenanceRow); } });
+    const sink = new PostgresSnapshotSink(asPool(async () => {
+      connected = true;
+      return new FakeClient(snapshot, provenanceRow);
+    }));
     await expect(sink.persist(snapshot, "not-a-uuid", provenance)).rejects.toThrow(SnapshotSinkError);
     expect(connected).toBe(false);
   });
