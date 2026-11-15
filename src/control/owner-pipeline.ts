@@ -3,9 +3,10 @@ import type { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { ownerConsole, ownerOverview, type OwnerConsoleAnalytics } from './owner-console.js';
 import { LEAD_TRANSITION_POLICY, LeadTransitionError, PostgresLeadTransitions, type LeadTransitionCommand } from './owner-lead-transitions.js';
+import { prospectIntake, ProspectInputError } from './prospect-assistant.js';
 import type { AnalyticsStore, LeadStage } from './owner-analytics.js';
 
-export interface PipelineLead { id: string; name: string; stage: LeadStage }
+export interface PipelineLead { id: string; name: string; stage: LeadStage; source?: string; notes?: string }
 export interface PipelineWorkflow {
   list(): Promise<PipelineLead[]>;
   approve(command: LeadTransitionCommand): Promise<{ replayed: boolean }>;
@@ -16,7 +17,7 @@ export function postgresPipelineWorkflow(pool: Pool, owner: string): PipelineWor
     async list() {
       // Missing migration 006 disables controls even when lead rows exist.
       await pool.query('SELECT command_id FROM owner_control.owner_lead_transition_events LIMIT 0');
-      const r = await pool.query('SELECT id::text, name, stage FROM owner_control.owner_leads ORDER BY updated_at DESC, id LIMIT 100');
+      const r = await pool.query('SELECT id::text, name, stage, source, notes FROM owner_control.owner_leads ORDER BY updated_at DESC, id LIMIT 100');
       return r.rows as PipelineLead[];
     },
     approve: command => transitions.approve(command),
@@ -33,7 +34,7 @@ export function registerOwnerPipeline(app: Express, options: {
   current: (req: Request) => { csrf: string; expires: number } | undefined;
   guarded: (req: Request, res: Response) => unknown;
   workflow?: PipelineWorkflow;
-  analytics?: Pick<AnalyticsStore, 'pipeline'>;
+  analytics?: Pick<AnalyticsStore, 'pipeline'> & Partial<Pick<AnalyticsStore, 'addLead'>>;
   taskQueueConnected?: boolean;
 }) {
   app.get('/', async (req, res, next) => {
@@ -45,6 +46,7 @@ export function registerOwnerPipeline(app: Express, options: {
       try { analytics = { configured: true, pipeline: await options.analytics.pipeline() }; }
       catch { analytics = { configured: true, databaseUnavailable: true }; }
     }
+    const intake = options.analytics?.addLead ? '<section class=panel><div class=panel-head><h2>Prospect intake</h2></div><div class=panel-body><p>Record an observed opportunity. Source, identity and buying intent remain unverified. Rules-based assistance only; no messages are sent.</p><form method=post action=/leads/intake><input type=hidden name=csrf value="' + esc(session.csrf) + '"><label class=field>Name or reference <input name=name required maxlength=200></label><label class=field>Claimed source <input name=source required maxlength=64></label><label class=field>Expressed need <input name=need required maxlength=600></label><button class="btn btn--primary">Save prospect and fit assessment</button></form><p class=hint>Do not enter credentials or sensitive payloads. Repeated submissions create separate records; inspect the list before retrying an uncertain response.</p></div></section>' : '<p role=status>Prospect intake is unavailable because the lead store is not configured.</p>';
     let content: string;
     if (!options.workflow) content = '<p role=alert>Lead transitions are not configured. No controls are enabled.</p>';
     else {
@@ -52,18 +54,31 @@ export function registerOwnerPipeline(app: Express, options: {
         const leads = await options.workflow.list();
         content = '<p>Owner approval only. Won is a pipeline label, not verified revenue. Latest 100 leads.</p>';
         const message = typeof req.query.lead_status === 'string' ? req.query.lead_status : '';
+        if (message === 'created') content += '<p role=status>Prospect saved. Its assessment is a draft, not verified buying intent.</p>';
         if (message === 'approved') content += '<p role=status>Approval request completed. Refresh confirms the current stage; the durable receipt is authoritative.</p>';
         if (errors.has(message) || message === 'lead_store_unavailable') content += '<p role=alert>Transition not completed: ' + esc(message) + '. Refresh before retrying.</p>';
         content += leads.length ? leads.map(lead => {
           if (!Object.hasOwn(LEAD_TRANSITION_POLICY, lead.stage)) throw new Error('invalid_stage');
           const targets = LEAD_TRANSITION_POLICY[lead.stage] as readonly LeadStage[];
-          return '<section class=panel><div class=panel-body><h3>' + esc(lead.name) + '</h3><p><code>' + esc(lead.id) + '</code> / ' + esc(lead.stage) + '</p>' + (targets.length ?
+          return '<section class=panel><div class=panel-body><h3>' + esc(lead.name) + '</h3><p><code>' + esc(lead.id) + '</code> / ' + esc(lead.stage) + '</p><p>Claimed source: ' + esc(lead.source ?? 'Unknown') + '</p>' + (lead.notes ? '<details><summary>Recorded evidence and assessment</summary><div class=panel-body><pre>' + esc(lead.notes) + '</pre></div></details>' : '') + (targets.length ?
             '<form method=post action=/leads/transition><input type=hidden name=csrf value="' + esc(session.csrf) + '"><input type=hidden name=commandId value="' + randomUUID() + '"><input type=hidden name=leadId value="' + esc(lead.id) + '"><input type=hidden name=from value="' + esc(lead.stage) + '"><label>Next stage <select name=to required>' + targets.map(t => '<option value="' + t + '">' + t + '</option>').join('') + '</select></label><label class=field>Approval reason <input name=reason required maxlength=400></label><button class="btn btn--primary">Approve transition</button></form>' : '<p>Terminal stage. No transition permitted.</p>') + '</div></section>';
         }).join('') : '<p>No leads recorded yet.</p>';
       } catch { content = '<p role=alert>Lead store unavailable. No transition controls are enabled. Check migrations 005 and 006 locally.</p>'; }
     }
     const base = ownerConsole(ownerOverview(options.owner, options.revision, options.now(), session.expires, options.taskQueueConnected ?? false), session.csrf, { view: 'pipeline' }, undefined, analytics);
-    res.type('html').send(base.replace('<footer class=note-foot>', '<section aria-label="Governed lead transitions"><h2>Governed lead transitions</h2>' + content + '</section><footer class=note-foot>'));
+    res.type('html').send(base.replace('<footer class=note-foot>', '<section aria-label="Governed lead transitions"><h2>Governed lead transitions</h2>' + intake + content + '</section><footer class=note-foot>'));
+  });
+  app.post('/leads/intake', async (req, res) => {
+    if (!options.guarded(req, res)) return;
+    if (!options.analytics?.addLead) { res.status(503).json({ error: 'lead_store_unavailable' }); return; }
+    try {
+      const input = prospectIntake(req.body ?? {});
+      const lead = await options.analytics.addLead(input);
+      if (req.is('application/x-www-form-urlencoded')) res.redirect(303, '/?view=pipeline&lead_status=created');
+      else res.status(201).json({ id: lead.id, stage: lead.stage, assessment: 'rules-v1', evidence: 'owner_recorded_unverified' });
+    } catch (error) {
+      res.status(error instanceof ProspectInputError ? 400 : 503).json({ error: error instanceof ProspectInputError ? 'invalid_prospect_input' : 'lead_store_unavailable' });
+    }
   });
   app.post('/leads/transition', async (req, res) => {
     if (!options.guarded(req, res)) return;

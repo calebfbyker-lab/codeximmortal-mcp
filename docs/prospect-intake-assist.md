@@ -1,0 +1,11 @@
+# Prospect intake and sales-assistance increment
+
+Commercial repository scope; no CI identifier, doctrine change, price approval, publication or deployment.
+
+Adds owner-only POST /leads/intake through the existing session/Origin/CSRF closures, plus a Pipeline intake form and expandable escaped lead source/notes. Persists using existing AnalyticsStore.addLead and owner_control.owner_leads; no second lead authority or migration. Source labels and identity remain unverified. Suggested product matches and response drafts are deterministic rules-v1, not model-driven agents or purchase-intent probabilities. All currently matched standalone services remain planned/unpublished under the existing registry. No stage promotion, payment, quote, revenue or profit is created. valueMinor=0 is a storage default, not a valuation estimate.
+
+No automated prospect collection, MCP interest telemetry, repository polling, LLM connection, worker execution, deduplication, idempotency, outreach, negotiated terms or conversion tracking is implemented here. Intake is manual and does not establish contact permission. A repeated submission creates a separate record; inspect after uncertain responses instead of blindly retrying. Future collection must attach verified provenance and environment boundaries separately. Existing catalog offerings and payment paths are unchanged.
+
+Validation required on resulting exact commit: npm run build; run src/control/prospect-intake.integration.test.ts, src/control/owner-pipeline.test.ts, src/control/owner-pipeline-app.test.ts and the existing owner HTTP tests. Tests authored, not executed by the assistant. New tests use mocked persistence with actual HTTP authorization; real database intake/read-back, restart, browser rendering and accessibility remain unverified. Database configuration requires the existing reviewed migrations; none runs at startup. No required tests or publication guards are relaxed.
+
+The Pipeline page still uses existing renderer insertion and the existing financial summary; this patch does not fix its known currency/accounting limitations or make financial results authoritative. Next increment: transactional idempotent intake and read-back fixtures, structured prospect evidence, then an authenticated internal collector and bounded real worker. No external messages are sent by this patch.
