@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { compareSnapshots } from "./pricing-compare.js";
-const plan = (id: string, amount: number | null = 10) => ({ id, name: id, amount, currency: "USD", interval: "month", evidence: amount === null ? null : { text: String(amount), token: String(amount) } });
+const plan = (id: string, amount: number | null = 10) => ({ id, name: id, amount, currency: "USD", interval: "month", evidence: amount === null ? null : { text: String(amount), token: String(amount), sourceStart: 0, sourceEnd: String(amount).length } });
 const snap = (plans: ReturnType<typeof plan>[], coverage = "partial") => ({ id: "s", sourceUrl: "https://example.test/pricing", capturedAt: "2026-11-11T15:00:00.000Z", coverage, plans });
 const trust = (beforeCompleteTrusted: boolean, afterCompleteTrusted: boolean) => ({ beforeCompleteTrusted, afterCompleteTrusted });
 describe("synthetic stored snapshot comparison", () => {
