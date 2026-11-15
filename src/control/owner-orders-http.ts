@@ -1,10 +1,11 @@
 import type { Express, Request } from 'express';
 import { Pool } from 'pg';
 import { PostgresOwnerCommerceOrders } from './owner-commerce-orders.js';
+import { distributionPanel, localDistributionInventory } from './distribution-inventory.js';
 import { commerceCss, commercePage, escapeHtml as esc } from './commerce-ui.js';
 
 export type OwnerOrdersStore = Pick<PostgresOwnerCommerceOrders, 'list'>;
-function page(content: string) { return commercePage('Orders & delivery', 'orders', content); }
+function page(content: string) { return commercePage('Orders & delivery', 'orders', content + distributionPanel()); }
 function render(data: Awaited<ReturnType<OwnerOrdersStore['list']>>) {
   const rows = data.orders.map(o => {
     const refs = [['Job', o.jobId], ['Quote', o.quoteId], ['Reservation', o.reservationState ?? 'Unavailable'],
@@ -20,6 +21,11 @@ function render(data: Awaited<ReturnType<OwnerOrdersStore['list']>>) {
 }
 export function registerOwnerOrders(app: Express, current: (req: Request) => unknown, store?: OwnerOrdersStore) {
   app.get('/assets/commerce.css', (_req, res) => { res.type('css').send(commerceCss); });
+  app.get('/api/distribution', (req, res) => {
+    if (!current(req)) { res.status(401).json({ error: 'unauthorized' }); return; }
+    try { res.json(localDistributionInventory()); }
+    catch { res.status(503).json({ error: 'distribution_inventory_unavailable' }); }
+  });
   app.get('/api/orders', async (req, res) => {
     if (!current(req)) { res.status(401).json({ error: 'unauthorized' }); return; }
     if (!store) { res.json({ configured: false, state: 'disabled' }); return; }
