@@ -2,6 +2,8 @@ name: Agent services PostgreSQL tests
 on:
   push:
     branches: [feat/agent-service-contracts, feat/agent-native-commerce-api]
+  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -38,8 +40,15 @@ jobs:
       - name: Prepare evidence directory
         run: mkdir -p ci-evidence
       - name: Record tested commit and runtime
+        env:
+          EVENT_SHA: ${{ github.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           git rev-parse HEAD > ci-evidence/commit.txt
+          printf '%s\n' "$EVENT_SHA" > ci-evidence/event-sha.txt
+          printf '%s\n' "$PR_HEAD_SHA" > ci-evidence/pr-head-sha.txt
+          printf '%s\n' "$EVENT_NAME" > ci-evidence/event-name.txt
           node --version > ci-evidence/node-version.txt
           npm --version > ci-evidence/npm-version.txt
       - run: npm install --no-audit --no-fund
@@ -69,5 +78,5 @@ jobs:
         with:
           name: agent-services-evidence-${{ github.sha }}-${{ github.run_attempt }}
           path: ci-evidence/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14
