@@ -12,9 +12,21 @@ const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('l
 let browser;const results=[];await mkdir('output/workspace-browser',{recursive:true});
 try{
  browser=await chromium.launch();const context=await browser.newContext();
- await context.route('**/*',async route=>{const req=route.request(),url=new URL(req.url());if(url.origin!==origin)return route.abort();const headers=await req.allHeaders();delete headers.host;const response=await fetch(base+url.pathname+url.search,{method:req.method(),headers,body:req.postDataBuffer()??undefined,redirect:'manual'});const h=Object.fromEntries(response.headers);delete h['content-length'];delete h['transfer-encoding'];delete h['connection'];await route.fulfill({status:response.status,headers:h,body:Buffer.from(await response.arrayBuffer())});});
- const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto(origin+'/');await page.waitForURL('**/login');
+ await context.route('**/*',async route=>{
+  const req=route.request(),url=new URL(req.url());
+  if(url.origin!==origin){console.error('Blocked external request origin: '+url.origin);await route.abort();return;}
+  try{
+   const headers=await req.allHeaders();delete headers.host;
+   const response=await fetch(base+url.pathname+url.search,{method:req.method(),headers,body:req.postDataBuffer()??undefined,redirect:'manual'});
+   const h=Object.fromEntries(response.headers);delete h['content-length'];delete h['transfer-encoding'];delete h['connection'];
+   await route.fulfill({status:response.status,headers:h,body:Buffer.from(await response.arrayBuffer())});
+  }catch(error){console.error('Fixture proxy failure for '+url.pathname+': '+(error instanceof Error?error.message:'unknown'));await route.abort();}
+ });
+ const page=await context.newPage(),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ page.on('requestfailed',r=>console.error('Request failed: '+r.url()+' '+(r.failure()?.errorText??'unknown')));
+ const unauthenticated=await fetch(base+'/',{redirect:'manual'});assert.equal(unauthenticated.status,303);assert.equal(unauthenticated.headers.get('location'),'/login');results.push({check:'unauthenticated root redirects to login',passed:true});
+ const loginPage=await page.goto(origin+'/login');assert.equal(loginPage.status(),200);results.push({check:'login page loads through the isolated fixture origin',passed:true});
  const login=await fetch(base+'/login',{method:'POST',redirect:'manual',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({owner:'owner',password})});assert.equal(login.status,303);const pair=login.headers.get('set-cookie').split(';')[0],i=pair.indexOf('=');await context.addCookies([{name:pair.slice(0,i),value:pair.slice(i+1),url:origin,secure:true,httpOnly:true,sameSite:'Strict'}]);
  const paths=['/','/?view=services','/distribution','/?view=pipeline','/orders','/?view=tasks','/?view=revenue','/?view=blockers','/?view=runtime'];let navigation;
  for(const width of [1440,768,390]){await page.setViewportSize({width,height:1000});for(const [index,path]of paths.entries()){const response=await page.goto(origin+path);assert.equal(response.status(),200);assert.equal(await page.locator('[data-owner-shell="shared-v1"]').count(),1);assert.equal(await page.locator('main').count(),1);assert.equal(await page.locator('nav [aria-current="page"]').count(),1);assert.equal(await page.locator('form[action="/logout"]').count(),1);assert.equal(await page.locator('[data-workspace-diagnostics]').getAttribute('open'),null);const nav=await page.locator('nav a').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('href')));if(navigation)assert.deepEqual(nav,navigation);else navigation=nav;assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2));await page.screenshot({path:`output/workspace-browser/${width}-${index}.png`,fullPage:true});results.push({width,path,passed:true});}}
