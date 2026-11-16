@@ -16,6 +16,8 @@ export interface RevenueSummary {
   currency: string; grossMinor: number; refundMinor: number; feeMinor: number;
   netMinor: number; eventCount: number;
   byDay: Array<{ day: string; netMinor: number }>;
+  /** Distinct currencies present in the reporting window, highest-net currency first. */
+  currencies?: string[];
 }
 export interface LeadRow {
   id: string; source: string; name: string; stage: LeadStage;
@@ -25,6 +27,10 @@ export interface LeadRow {
 export interface PipelineSummary {
   stages: Array<{ stage: LeadStage; count: number; valueMinor: number }>;
   leadCount: number; wonValueMinor: number; conversionPercent: number | null;
+  /** Currency the reported stage values are denominated in. */
+  currency?: string;
+  /** Distinct lead currencies present, highest won-value currency first. */
+  currencies?: string[];
 }
 export interface AnalyticsStore {
   revenueSummary(days: number): Promise<RevenueSummary>;
@@ -34,17 +40,25 @@ export interface AnalyticsStore {
 }
 
 const LEAD_STAGES: LeadStage[] = ['new', 'qualified', 'engaged', 'won', 'lost'];
-// pg returns bigint aggregates as strings; accept both forms.
-const safeInt = (value: unknown, fallback = 0) => {
+// pg returns bigint aggregates as strings. Monetary aggregates must be exact
+// integers; anything else is a data-quality failure, never a silent zero.
+const strictInt = (value: unknown): number => {
   if (typeof value === 'number' && Number.isSafeInteger(value)) return value;
   if (typeof value === 'string' && /^-?[0-9]{1,15}$/.test(value)) return Number(value);
-  return fallback;
+  throw new AnalyticsError();
+};
+const currencyCode = (value: unknown): string => {
+  if (typeof value !== 'string' || !/^[A-Za-z]{3}$/.test(value)) throw new AnalyticsError();
+  return value.toUpperCase();
 };
 
 /**
  * Read-mostly analytics over the owner-local database cache. Revenue data is
  * synchronized from Stripe by owner-stripe-sync.ts; nothing here connects to
  * any financial system directly, and every query is parameterized.
+ * Aggregations are currency-isolated: totals, the daily series and pipeline
+ * values never sum different currencies, and malformed monetary values fail
+ * closed instead of being reported as zero.
  */
 export class PostgresAnalyticsStore implements AnalyticsStore {
   constructor(private readonly pool: Pick<Pool, 'query'>, private readonly schema = 'owner_control') {}
@@ -66,40 +80,66 @@ export class PostgresAnalyticsStore implements AnalyticsStore {
       'COALESCE(SUM(net_minor) FILTER (WHERE kind = $4), 0)::bigint AS fees, ' +
       'COALESCE(SUM(net_minor), 0)::bigint AS net, COUNT(*)::int AS events ' +
       'FROM ' + this.table('owner_revenue_events') + ' WHERE occurred_at >= now() - ($1::int * interval ' + "'1 day'" + ') ' +
-      'GROUP BY currency ORDER BY net DESC LIMIT 1',
+      'GROUP BY currency',
       [window, 'charge', 'refund', 'fee'],
     ).catch(() => { throw new AnalyticsError(); });
+    const byCurrency = (totals.rows as Array<Record<string, unknown>>).map(row => ({
+      currency: currencyCode(row.currency),
+      grossMinor: strictInt(row.gross), refundMinor: strictInt(row.refunds),
+      feeMinor: strictInt(row.fees), netMinor: strictInt(row.net), eventCount: strictInt(row.events),
+    }));
+    byCurrency.sort((a, b) => b.netMinor - a.netMinor || (a.currency < b.currency ? -1 : a.currency > b.currency ? 1 : 0));
+    const primary = byCurrency[0];
+    if (!primary) {
+      return { currency: 'USD', grossMinor: 0, refundMinor: 0, feeMinor: 0, netMinor: 0, eventCount: 0, byDay: [], currencies: [] };
+    }
     const byDay = await this.pool.query(
       'SELECT to_char(date_trunc(' + "'day'" + ', occurred_at), ' + "'YYYY-MM-DD'" + ') AS day, COALESCE(SUM(net_minor), 0)::bigint AS net ' +
-      'FROM ' + this.table('owner_revenue_events') + ' WHERE occurred_at >= now() - ($1::int * interval ' + "'1 day'" + ') GROUP BY 1 ORDER BY 1',
-      [window],
+      'FROM ' + this.table('owner_revenue_events') + ' WHERE occurred_at >= now() - ($1::int * interval ' + "'1 day'" + ') AND currency = $2 GROUP BY 1 ORDER BY 1',
+      [window, primary.currency],
     ).catch(() => { throw new AnalyticsError(); });
-    const row = totals.rows[0] as Record<string, unknown> | undefined;
     return {
-      currency: String(row?.currency ?? 'USD').toUpperCase(),
-      grossMinor: safeInt(row?.gross), refundMinor: safeInt(row?.refunds),
-      feeMinor: safeInt(row?.fees), netMinor: safeInt(row?.net),
-      eventCount: safeInt(row?.events),
-      byDay: byDay.rows.map((r: Record<string, unknown>) => ({ day: String(r.day), netMinor: safeInt(r.net) })),
+      currency: primary.currency,
+      grossMinor: primary.grossMinor, refundMinor: primary.refundMinor,
+      feeMinor: primary.feeMinor, netMinor: primary.netMinor, eventCount: primary.eventCount,
+      byDay: byDay.rows.map((r: Record<string, unknown>) => ({ day: String(r.day), netMinor: strictInt(r.net) })),
+      currencies: byCurrency.map(row => row.currency),
     };
   }
 
   async pipeline(): Promise<PipelineSummary> {
     const result = await this.pool.query(
-      'SELECT stage::text AS stage, COUNT(*)::int AS count, COALESCE(SUM(value_minor), 0)::bigint AS value FROM ' + this.table('owner_leads') + ' GROUP BY stage',
+      'SELECT stage::text AS stage, currency, COUNT(*)::int AS count, COALESCE(SUM(value_minor), 0)::bigint AS value FROM ' + this.table('owner_leads') + ' GROUP BY stage, currency',
     ).catch(() => { throw new AnalyticsError(); });
-    const counts = new Map<string, { count: number; valueMinor: number }>();
-    let leadCount = 0;
+    const byCurrency = new Map<string, Map<string, { count: number; valueMinor: number }>>();
     for (const raw of result.rows) {
       const row = raw as Record<string, unknown>;
+      const currency = currencyCode(row.currency);
       const stage = String(row.stage);
-      const count = safeInt(row.count), value = safeInt(row.value);
-      counts.set(stage, { count, valueMinor: value });
-      leadCount += count;
+      const entry = { count: strictInt(row.count), valueMinor: strictInt(row.value) };
+      let stages = byCurrency.get(currency);
+      if (!stages) { stages = new Map(); byCurrency.set(currency, stages); }
+      const existing = stages.get(stage);
+      stages.set(stage, existing ? { count: existing.count + entry.count, valueMinor: existing.valueMinor + entry.valueMinor } : entry);
     }
-    const stages = LEAD_STAGES.map(stage => ({ stage, count: counts.get(stage)?.count ?? 0, valueMinor: counts.get(stage)?.valueMinor ?? 0 }));
-    const wonValueMinor = counts.get('won')?.valueMinor ?? 0;
-    return { stages, leadCount, wonValueMinor, conversionPercent: leadCount > 0 ? Math.round((counts.get('won')?.count ?? 0) / leadCount * 1000) / 10 : null };
+    const currencies = [...byCurrency.entries()]
+      .sort((a, b) => (b[1].get('won')?.valueMinor ?? 0) - (a[1].get('won')?.valueMinor ?? 0) || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+      .map(([currency]) => currency);
+    const primaryCurrency = currencies[0];
+    if (!primaryCurrency) {
+      return { stages: LEAD_STAGES.map(stage => ({ stage, count: 0, valueMinor: 0 })), leadCount: 0, wonValueMinor: 0, conversionPercent: null, currency: 'USD', currencies: [] };
+    }
+    const stages = byCurrency.get(primaryCurrency)!;
+    const stageRows = LEAD_STAGES.map(stage => ({ stage, count: stages.get(stage)?.count ?? 0, valueMinor: stages.get(stage)?.valueMinor ?? 0 }));
+    let leadCount = 0;
+    for (const entry of stages.values()) leadCount += entry.count;
+    const won = stages.get('won');
+    return {
+      stages: stageRows, leadCount,
+      wonValueMinor: won?.valueMinor ?? 0,
+      conversionPercent: leadCount > 0 ? Math.round((won?.count ?? 0) / leadCount * 1000) / 10 : null,
+      currency: primaryCurrency, currencies,
+    };
   }
 
   async upsertRevenueEvents(events: RevenueEvent[]): Promise<number> {
@@ -138,7 +178,7 @@ export class PostgresAnalyticsStore implements AnalyticsStore {
     if (!row) throw new AnalyticsError();
     return {
       id: String(row.id), source: String(row.source), name: String(row.name),
-      stage: String(row.stage) as LeadStage, valueMinor: safeInt(row.value_minor),
+      stage: String(row.stage) as LeadStage, valueMinor: strictInt(row.value_minor),
       currency: String(row.currency), notes: String(row.notes ?? ''),
       createdAt: new Date(String(row.created_at)), updatedAt: new Date(String(row.updated_at)),
     };

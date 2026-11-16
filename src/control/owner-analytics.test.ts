@@ -15,7 +15,8 @@ const pipeline: PipelineSummary = {
     { stage: 'engaged', count: 1, valueMinor: 7500 },
     { stage: 'won', count: 2, valueMinor: 90000 },
     { stage: 'lost', count: 1, valueMinor: 0 },
-  ], leadCount: 9, wonValueMinor: 90000, conversionPercent: 22.2,
+  ],
+  leadCount: 9, wonValueMinor: 90000, conversionPercent: 22.2,
 };
 
 describe('analytics console views', () => {
@@ -70,7 +71,7 @@ describe('analytics store', () => {
   });
   it('builds the pipeline with conversion from stage counts', async () => {
     const pool = new FakePool([
-      { rows: [{ stage: 'new', count: 3, value: '15000' }, { stage: 'won', count: 2, value: '90000' }], rowCount: 2 },
+      { rows: [{ stage: 'new', currency: 'usd', count: 3, value: '15000' }, { stage: 'won', currency: 'usd', count: 2, value: '90000' }], rowCount: 2 },
     ]);
     const store = new PostgresAnalyticsStore(pool as never, 'owner_test');
     const pipeline = await store.pipeline();
