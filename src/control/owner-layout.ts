@@ -21,7 +21,27 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 .bar-fill--pos{background:var(--ok)}.bar-fill--neg{background:var(--danger)}
 .login-shell{background:var(--bg)}.login-card{box-shadow:var(--shadow)}.login-card input{width:100%}
 .table-wrap{max-width:100%;overflow:auto}td code{overflow-wrap:anywhere}.num{font-variant-numeric:tabular-nums}
+/* owner-layout-v2: supply missing commerce primitives; keep evidence readable. */
+.workspace .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:0 0 20px}
+.workspace .stat{min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px}
+.workspace .stat-label{font-size:12px;color:var(--muted);line-height:1.4}
+.workspace .stat-value{font-size:26px;font-weight:650;margin-top:6px;line-height:1.2;font-variant-numeric:tabular-nums}
+.workspace .main,.shell .main{min-width:0}
+.workspace .table-wrap{max-width:100%;overflow-x:auto}
+.workspace .table-wrap table{min-width:760px}
+.workspace .table-wrap th,.workspace .table-wrap td{vertical-align:top}
+.workspace td details{width:26rem;min-width:26rem;max-width:none}
+.workspace td details .panel-body{padding:14px}
+.workspace td details dl{display:block;margin:0}
+.workspace td details dt{font-size:12px;font-weight:600;color:var(--muted);margin:12px 0 4px}
+.workspace td details dt:first-child{margin-top:0}
+.workspace td details dd{margin:0;min-width:0;white-space:normal;word-break:normal;overflow-wrap:anywhere;line-height:1.5}
+.workspace .prospect-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px;align-items:end}
+.workspace .prospect-form .field{min-width:0;max-width:none}
+.workspace .prospect-form .toolbar{justify-content:flex-start;margin:14px 0;gap:10px}
+.sidebar{overflow-y:auto}
 @media(max-width:900px){.shell{grid-template-columns:1fr}.sidebar{position:static;height:auto;padding:16px;gap:16px}.sidebar-foot{flex-wrap:wrap}.topbar{position:static;padding:12px 16px;flex-wrap:wrap}.content{padding:24px 16px}}
+@media(max-width:600px){.workspace .prospect-form{grid-template-columns:minmax(0,1fr)}.workspace .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.stat-grid{grid-template-columns:1fr}.search{min-width:0;width:100%}.toolbar{align-items:stretch}.brand{padding:0}.nav a{padding:9px}.bar-row{grid-template-columns:80px minmax(0,1fr) 90px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 `;
