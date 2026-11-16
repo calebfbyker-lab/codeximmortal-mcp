@@ -62,7 +62,7 @@ describe('isolated owner control HTTP boundary (synthetic credentials)', () => {
     const headers = { Cookie: cookieOnly(result.cookie) };
     const overview = await http(url, '/api/overview', undefined, headers); expect(overview.status).toBe(200);
     expect(JSON.parse(overview.body)).toMatchObject({ owner: 'owner', taskDispatch: false, serviceReadiness: 'not_evaluated' });
-    expect((await http(url, '/', undefined, headers)).body).toContain('Owner control');
+    expect((await http(url, '/', undefined, headers)).body).toContain('<title>Overview | CodexImmortal</title>');
     expect(overview.body).not.toContain(config.hashHex); expect(overview.body).not.toContain(password);
   });
   it('rotates sessions and rejects duplicate session cookies', async () => {
