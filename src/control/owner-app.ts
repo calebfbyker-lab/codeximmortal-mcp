@@ -3,6 +3,8 @@ import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from
 import { ownerConsole, ownerCss, ownerJs, ownerLogin, ownerOverview, type OwnerConsoleAnalytics, type OwnerConsoleTasks } from './owner-console.js';
 import { ownerLayoutCss } from './owner-layout.js';
 import { normalizeOwnerShell } from './owner-shell.js';
+import { adaptOwnerPage, renderWorkspace, workQueuePanel, workspaceCss, workspaceNavigation } from './owner-workspace.js';
+import { createWorkQueueReader, workQueueJs } from './owner-work-queue.js';
 import type { OwnerTask, OwnerTaskView } from './owner-task-queue.js';
 import type { OwnerGovernanceAgent, OwnerGovernanceView } from './owner-governance.js';
 import { registerOwnerOrders, type OwnerOrdersStore } from './owner-orders-http.js';
@@ -48,22 +50,32 @@ export function createOwnerControlApp(input?: OwnerConfig, now: () => number = D
   const expected = Buffer.from(hashHex, 'hex');
   let session: { hash: string; csrf: string; expires: number } | undefined;
   let windowStart = now(), attempts = 0;
+  const readWorkQueue = createWorkQueueReader(tasks, now);
   const app = express();
   app.disable('x-powered-by'); app.set('trust proxy', false);
   app.use((_req, res, next) => {
     res.set({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
-      'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+      'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
       'Referrer-Policy': 'same-origin' }); next();
   });
-  app.use((_req, res, next) => {
+  app.use((req, res, next) => {
     const send = res.send.bind(res);
-    res.send = ((body?: unknown) => send(typeof body === 'string' && /text\/html/.test(String(res.get('Content-Type') ?? '')) ? normalizeOwnerShell(body) : body as never)) as typeof res.send;
+    res.send = ((body?: unknown) => {
+      if (typeof body !== 'string' || !/text\/html/.test(String(res.get('Content-Type') ?? ''))) return send(body);
+      const s = current(req);
+      if (!s || !/<main\b/i.test(body)) return send(normalizeOwnerShell(body));
+      const raw = req.path === '/orders' ? 'orders' : req.path === '/distribution' ? 'distribution' : typeof req.query.view === 'string' ? req.query.view : 'overview';
+      const active = workspaceNavigation.some(([key]) => key === raw) ? raw : 'overview';
+      try { return send(adaptOwnerPage(body,{active,csrf:s.csrf,expires:s.expires,revision,time:now()})); }
+      catch { res.status(500); return send('<!doctype html><html lang="en"><head><title>Workspace unavailable</title></head><body><h1>Workspace unavailable</h1><p>The page shape could not be safely rendered.</p><a href="/">Return to overview</a></body></html>'); }
+    }) as typeof res.send;
     next();
   });
-  // Only static, non-sensitive CSS and the console enhancement script are public.
-  // All overview data requires a valid session.
+  // Public static assets contain no owner data. Every queue read requires a session.
   app.get('/assets/owner.css', (_req, res) => { res.type('css').send(ownerCss + '\n' + ownerLayoutCss); });
   app.get('/assets/owner.js', (_req, res) => { res.type('application/javascript').send(ownerJs); });
+  app.get('/assets/workspace.css', (_req, res) => { res.type('css').send(workspaceCss); });
+  app.get('/assets/work-queue.js', (_req, res) => { res.type('application/javascript').send(workQueueJs); });
   app.use(express.json({ limit: '2kb', strict: true }));
   app.use(express.urlencoded({ extended: false, limit: '2kb', parameterLimit: 6 }));
   function current(req: Request) {
@@ -116,6 +128,12 @@ export function createOwnerControlApp(input?: OwnerConfig, now: () => number = D
     res.set('Set-Cookie', COOKIE + '=' + value + '; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=900');
     res.redirect(303, '/');
   });
+  app.get('/api/work-queue', async (req, res) => {
+    if (!current(req)) { res.status(401).json({error:'unauthorized'}); return; }
+    const snapshot = await readWorkQueue();
+    if (!current(req)) { res.status(401).json({error:'unauthorized'}); return; }
+    res.status(snapshot.status === 'unavailable' ? 503 : 200).json(snapshot);
+  });
   app.get('/api/overview', (req, res) => {
     const s = current(req); if (!s) { res.status(401).json({ error: 'unauthorized' }); return; }
     if (req.query.download === '1') res.set('Content-Disposition', 'attachment; filename=owner-snapshot.json');
@@ -137,6 +155,13 @@ export function createOwnerControlApp(input?: OwnerConfig, now: () => number = D
   registerOwnerPipeline(app, { owner, revision, now, current, guarded, workflow, analytics, taskQueueConnected: Boolean(tasks) });
   app.get('/', async (req, res) => {
     const s = current(req); if (!s) { res.redirect(303, '/login'); return; }
+    const requested = typeof req.query.view === 'string' ? req.query.view : 'overview';
+    if (!['services','blockers','runtime','tasks','revenue','pipeline'].includes(requested)) {
+      const snapshot = await readWorkQueue();
+      if (!current(req)) { res.redirect(303,'/login'); return; }
+      res.type('html').send(renderWorkspace(workQueuePanel(snapshot),{active:'overview',csrf:s.csrf,expires:s.expires,revision,time:now()},{queue:true}));
+      return;
+    }
     let consoleTasks: OwnerConsoleTasks | undefined;
     if (tasks) {
       let view: OwnerTaskView | undefined; let databaseUnavailable = false;
@@ -150,7 +175,6 @@ export function createOwnerControlApp(input?: OwnerConfig, now: () => number = D
     }
     let consoleAnalytics: OwnerConsoleAnalytics | undefined;
     if (analytics) {
-      const requested = typeof req.query.view === 'string' ? req.query.view : '';
       try {
         consoleAnalytics = requested === 'revenue' ? { configured: true, revenue: await analytics.revenueSummary(30) }
           : requested === 'pipeline' ? { configured: true, pipeline: await analytics.pipeline() }
