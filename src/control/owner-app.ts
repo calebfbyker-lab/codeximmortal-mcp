@@ -2,6 +2,7 @@ import express, { type ErrorRequestHandler, type Request, type Response } from '
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { ownerConsole, ownerCss, ownerJs, ownerLogin, ownerOverview, type OwnerConsoleAnalytics, type OwnerConsoleTasks } from './owner-console.js';
 import { ownerLayoutCss } from './owner-layout.js';
+import { normalizeOwnerShell } from './owner-shell.js';
 import type { OwnerTask, OwnerTaskView } from './owner-task-queue.js';
 import type { OwnerGovernanceAgent, OwnerGovernanceView } from './owner-governance.js';
 import { registerOwnerOrders, type OwnerOrdersStore } from './owner-orders-http.js';
@@ -53,6 +54,11 @@ export function createOwnerControlApp(input?: OwnerConfig, now: () => number = D
     res.set({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
       'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
       'Referrer-Policy': 'same-origin' }); next();
+  });
+  app.use((_req, res, next) => {
+    const send = res.send.bind(res);
+    res.send = ((body?: unknown) => send(typeof body === 'string' && /text\/html/.test(String(res.get('Content-Type') ?? '')) ? normalizeOwnerShell(body) : body as never)) as typeof res.send;
+    next();
   });
   // Only static, non-sensitive CSS and the console enhancement script are public.
   // All overview data requires a valid session.
@@ -152,7 +158,7 @@ export function createOwnerControlApp(input?: OwnerConfig, now: () => number = D
       } catch { consoleAnalytics = { configured: true, databaseUnavailable: true }; }
     }
     res.type('html').send(ownerConsole(ownerOverview(owner, revision, now(), s.expires, Boolean(tasks)), s.csrf,
-      { view: req.query.view, q: req.query.q, error: req.query.error }, consoleTasks, consoleAnalytics).replace('</nav>', '<a href="/orders">Orders</a></nav>'));
+      { view: req.query.view, q: req.query.q, error: req.query.error }, consoleTasks, consoleAnalytics));
   });
   app.post('/tasks/propose', async (req, res) => {
     if (!guarded(req, res)) return;
