@@ -103,6 +103,25 @@ function analyticsUnavailable(analytics: OwnerConsoleAnalytics | undefined) {
   }
   return '';
 }
+function analyticsCurrencyScope(summary: { currency?: string; currencies?: string[] }, pipeline: boolean): { currency?: string; html: string; empty: boolean } {
+  if (summary.currencies?.length === 0) {
+    return { html: '<p class=hint>No records in this reporting scope. No observed currency.</p>', empty: true };
+  }
+  const valid = (value: unknown): value is string => typeof value === 'string' && /^[A-Z]{3}$/.test(value);
+  const currency = summary.currency;
+  if (!valid(currency) || (summary.currencies !== undefined &&
+      (summary.currencies.some(code => !valid(code)) || !summary.currencies.includes(currency)))) {
+    return { html: '<p class="flash flash--warn" role=alert>Currency unavailable. Monetary values are not shown.</p>', empty: false };
+  }
+  const others = summary.currencies?.filter(code => code !== currency);
+  const population = pipeline
+    ? ' Counts, tracked values, and conversion apply only to leads in this currency. Won value is not proof of payment.'
+    : ' Totals, event count, and daily chart apply only to this currency.';
+  const coverage = others === undefined ? ' Other-currency coverage is unavailable.'
+    : others.length ? ' Other recorded currencies excluded: ' + [...new Set(others)].join(', ') + '.'
+    : ' No other recorded currencies in this scope.';
+  return { currency, empty: false, html: '<p class=hint data-currency-scope>Showing ' + escape(currency) + ' only.' + population + escape(coverage) + ' No currency conversion applied.</p>' };
+}
 function revenuePanel(analytics: OwnerConsoleAnalytics | undefined) {
   const unavailable = analyticsUnavailable(analytics);
   if (unavailable !== '' || !analytics || !analytics.revenue) {
@@ -110,12 +129,15 @@ function revenuePanel(analytics: OwnerConsoleAnalytics | undefined) {
       + '<div class=empty><div class=empty-title>No revenue data yet</div><p class=hint>Run the Stripe sync to populate the local cache. Net revenue already reflects Stripe fees and refunds; business costs are NOT included until a cost meter exists, so this is not profit.</p></div>';
   }
   const r = analytics.revenue;
+  const scope = analyticsCurrencyScope(r, false);
+  if (scope.empty || !scope.currency) return '<div class=page-head><h2>Revenue</h2></div>' + scope.html;
   const maxDay = Math.max(1, ...r.byDay.map(d => Math.abs(d.netMinor)));
   const bars = r.byDay.map(d => {
     const percent = Math.min(100, Math.max(5, Math.ceil(Math.abs(d.netMinor) / maxDay * 20) * 5));
     return '<div class=bar-row><span class=bar-label>' + escape(d.day) + '</span><span class=bar-track><span class="bar-fill ' + (d.netMinor >= 0 ? 'bar-fill--pos' : 'bar-fill--neg') + ' bar-p' + percent + '"></span></span><span class=bar-value>' + escape(money(d.netMinor, r.currency)) + '</span></div>';
   }).join('');
   return '<div class=page-head><h2>Revenue</h2><p class=hint>Cached from Stripe balance transactions in the owner-local database. Net reflects fees and refunds; business costs are NOT included, so this is not profit.</p></div>'
+    + scope.html
     + '<div class=stat-grid>'
     + '<div class=stat><div class=stat-label>Gross charges</div><div class=stat-value>' + escape(money(r.grossMinor, r.currency)) + '</div><div class=stat-sub>' + r.eventCount + ' events</div></div>'
     + '<div class=stat><div class=stat-label>Refunds</div><div class=stat-value>' + escape(money(r.refundMinor, r.currency)) + '</div></div>'
@@ -132,12 +154,16 @@ function pipelinePanel(analytics: OwnerConsoleAnalytics | undefined) {
       + '<div class=empty><div class=empty-title>No pipeline data yet</div><p class=hint>Leads are added locally via the analytics store; stage transitions arrive in Phase 2 with governed approvals.</p></div>';
   }
   const p = analytics.pipeline;
-  const cards = p.stages.map(s => '<div class=stat><div class=stat-label>' + escape(s.stage) + '</div><div class=stat-value>' + s.count + '</div><div class=stat-sub>' + escape(money(s.valueMinor, 'USD')) + ' tracked value</div></div>').join('');
-  return '<div class=page-head><h2>Pipeline</h2><p class=hint>Local lead pipeline. Conversion is won leads over all recorded leads; no outbound automation exists in this build.</p></div>'
+  const scope = analyticsCurrencyScope(p, true);
+  const currency = scope.currency;
+  if (scope.empty || !currency) return '<div class=page-head><h2>Pipeline</h2></div>' + scope.html;
+  const cards = p.stages.map(s => '<div class=stat><div class=stat-label>' + escape(s.stage) + '</div><div class=stat-value>' + s.count + '</div><div class=stat-sub>' + escape(money(s.valueMinor, currency)) + ' tracked value</div></div>').join('');
+  return '<div class=page-head><h2>Pipeline</h2><p class=hint>Local lead pipeline. Conversion is won leads divided by recorded leads in the selected currency; no outbound automation exists in this build.</p></div>'
+    + scope.html
     + '<div class=funnel>' + cards + '</div>'
     + '<div class=stat-grid>'
     + '<div class=stat><div class=stat-label>Leads</div><div class=stat-value>' + p.leadCount + '</div></div>'
-    + '<div class=stat><div class=stat-label>Won value</div><div class=stat-value>' + escape(money(p.wonValueMinor, 'USD')) + '</div></div>'
+    + '<div class=stat><div class=stat-label>Won value</div><div class=stat-value>' + escape(money(p.wonValueMinor, currency)) + '</div></div>'
     + '<div class=stat><div class=stat-label>Conversion</div><div class=stat-value>' + (p.conversionPercent === null ? 'n/a' : escape(String(p.conversionPercent)) + '%') + '</div></div>'
     + '</div>';
 }
