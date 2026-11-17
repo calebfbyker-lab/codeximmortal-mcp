@@ -15,8 +15,7 @@ const pipeline: PipelineSummary = {
     { stage: 'engaged', count: 1, valueMinor: 7500 },
     { stage: 'won', count: 2, valueMinor: 90000 },
     { stage: 'lost', count: 1, valueMinor: 0 },
-  ],
-  leadCount: 9, wonValueMinor: 90000, conversionPercent: 22.2,
+  ], leadCount: 9, wonValueMinor: 90000, conversionPercent: 22.2, currency: 'USD', currencies: ['USD'],
 };
 
 describe('analytics console views', () => {

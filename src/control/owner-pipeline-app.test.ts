@@ -26,7 +26,7 @@ async function fixture(run: (f: { base: string; cookie: string; csrf: string; se
     approve: async command => { if (fail) throw new LeadTransitionError('lead_stage_conflict'); seen.push(command); return { replayed: false }; },
   };
   const analytics: AnalyticsStore = {
-    pipeline: async () => ({ stages: [{ stage: 'new', count: 1, valueMinor: 0 }], leadCount: 1, wonValueMinor: 0, conversionPercent: 0 }),
+    pipeline: async () => ({ stages: [{ stage: 'new', count: 1, valueMinor: 0 }], leadCount: 1, wonValueMinor: 0, conversionPercent: 0, currency: 'USD', currencies: ['USD'] }),
     revenueSummary: async () => { throw new Error('unused'); }, upsertRevenueEvents: async () => 0, addLead: async () => { throw new Error('unused'); },
   };
   const server: Server = createOwnerControlApp(config, Date.now, undefined, undefined, analytics, workflow).listen(0, '127.0.0.1');
