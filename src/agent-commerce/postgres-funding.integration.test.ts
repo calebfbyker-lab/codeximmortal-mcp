@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { Pool } from "pg";
-import { afterAll, afterAll as teardown, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PostgresFunding } from "./postgres-funding.js";
 
 const url = process.env.TEST_DATABASE_URL;

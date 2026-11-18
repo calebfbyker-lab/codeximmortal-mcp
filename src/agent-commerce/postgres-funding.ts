@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
-import { ApiError } from "api.js";
+import { ApiError } from "./api.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CURRENCY = /^[A-Z]{3}$/;
