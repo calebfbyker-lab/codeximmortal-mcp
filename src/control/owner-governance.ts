@@ -105,12 +105,13 @@ export class OwnerGovernance {
       const last = await c.query<{ entry_sha256: string }>(
         `SELECT entry_sha256 FROM ${this.s}.governance_events WHERE owner_id=$1 ORDER BY sequence DESC LIMIT 1`, [this.owner]);
       const prev = last.rows[0]?.entry_sha256 ?? null;
-      const inserted = await c.query<{ sequence: string }>(
-        `INSERT INTO ${this.s}.governance_events(owner_id,actor,event_type,payload,prev_entry_sha256) VALUES($1,$2,$3,$4::jsonb,$5) RETURNING sequence`,
-        [this.owner, actor, eventType, encoded, prev]);
-      const sequence = inserted.rows[0].sequence;
-      await c.query(`UPDATE ${this.s}.governance_events SET entry_sha256=$1 WHERE sequence=$2`,
-        [sha256([sequence, prev ?? '', this.owner, actor, eventType, encoded].join('|')), sequence]);
+      // entry_sha256 is NOT NULL, so the chain hash is computed before the insert.
+      // The generated sequence is not part of the hash: ordering stays pinned by each
+      // entry's prev_entry_sha256 link, which verification walks in order.
+      await c.query(
+        `INSERT INTO ${this.s}.governance_events(owner_id,actor,event_type,payload,prev_entry_sha256,entry_sha256)
+         VALUES($1,$2,$3,$4::jsonb,$5,$6)`,
+        [this.owner, actor, eventType, encoded, prev, sha256([prev ?? '', this.owner, actor, eventType, encoded].join('|'))]);
     });
   }
   async verifyChain(limit = 100): Promise<boolean> {
@@ -122,7 +123,7 @@ export class OwnerGovernance {
       for (const row of rows.rows) {
         const encoded = canonical(row.payload);
         if (row.prev_entry_sha256 !== prev) return false;
-        if (row.entry_sha256 !== sha256([row.sequence, prev ?? '', this.owner, row.actor, row.event_type, encoded].join('|'))) return false;
+        if (row.entry_sha256 !== sha256([prev ?? '', this.owner, row.actor, row.event_type, encoded].join('|'))) return false;
         prev = row.entry_sha256;
       }
       return true;

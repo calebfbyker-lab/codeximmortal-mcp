@@ -28,7 +28,7 @@ describe.runIf(Boolean(url))("agent funding order creation", () => {
     pool = new Pool({ connectionString: url, max: 8, connectionTimeoutMillis: 5000, statement_timeout: 10000 });
     const c = await pool.connect();
     try {
-      for (const file of ["standalone_commerce_v1.sql", "standalone_commerce_funding_v1.sql", "standalone_commerce_funding_api_v1.sql"]) {
+      for (const file of ["standalone_commerce_v1.sql", "standalone_commerce_funding_v1.sql", "standalone_commerce_funding_api_v1.sql", "standalone_commerce_deposit_v1.sql"]) {
         await c.query(readFileSync(new URL(`../../migrations/${file}`, import.meta.url), "utf8").replaceAll("agent_commerce", schema));
       }
       created = true;

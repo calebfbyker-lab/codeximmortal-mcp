@@ -13,7 +13,7 @@ describe.runIf(Boolean(url))("durable execution and settlement",()=>{
   const schema=`worker_test_${randomUUID().replaceAll("-","")}`,buyer=randomUUID();
   const p:Principal={buyerId:buyer,clientId:"agent",scopes:["commerce:quote","services:execute","jobs:read","results:read"]};
   let pool:Pool,backend:PostgresCommerce,worker:DurableWorker,providers:Providers,created=false;
-  function snapshot(id="captured",amount=10){return {id,sourceUrl:"https://example.test/pricing",capturedAt:"2026-11-12T13:00:00.000Z",coverage:"partial",plans:[{id:"basic",name:"Basic",amount,currency:"USD",interval:"month",evidence:{text:String(amount),token:String(amount)}}]};}
+  function snapshot(id="captured",amount=10){return {id,sourceUrl:"https://example.test/pricing",capturedAt:"2026-11-12T13:00:00.000Z",coverage:"partial",plans:[{id:"basic",name:"Basic",amount,currency:"USD",interval:"month",evidence:{text:String(amount),token:String(amount),sourceStart:0,sourceEnd:String(amount).length}}]};}
   beforeAll(async()=>{
     pool=new Pool({connectionString:url,max:10,connectionTimeoutMillis:5000,statement_timeout:10000});
     const c=await pool.connect();

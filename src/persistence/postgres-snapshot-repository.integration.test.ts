@@ -27,7 +27,7 @@ describe.runIf(Boolean(databaseUrl))("PostgreSQL two-buyer isolation (synthetic 
       id, sourceUrl: "https://example.test/pricing",
       capturedAt: "2026-11-11T15:00:00.000Z", coverage: "partial",
       plans: [{ id: "basic", name: "Basic", amount, currency: "USD",
-        interval: "month", evidence: { text: String(amount), token: String(amount) } }],
+        interval: "month", evidence: { text: String(amount), token: String(amount), sourceStart: 0, sourceEnd: String(amount).length } }],
     };
   }
 
@@ -73,7 +73,7 @@ describe.runIf(Boolean(databaseUrl))("PostgreSQL two-buyer isolation (synthetic 
     try { if (pool) await pool.end(); }
     finally {
       if (admin) {
-        try { if (schemaCreated) await admin.query(`DROP SCHEMA "${schema}" CASCADE`); }
+        try { await admin.query(`DROP SCHEMA "${schema}" CASCADE`); }
         finally { await admin.end(); }
       }
     }

@@ -78,7 +78,7 @@ export class PostgresSnapshotSink implements SnapshotSink {
       if (storedProvenance.rowCount !== 1 || !row
         || row.source_id !== provenance.sourceId
         || row.content_sha256 !== provenance.contentSha256
-        || row.fetch_bytes !== provenance.fetchBytes
+        || String(row.fetch_bytes) !== String(provenance.fetchBytes)
         || row.extracted_plans !== provenance.extractedPlans
         || row.raw_content_type !== provenance.rawContentType) {
         throw new SnapshotSinkError();
