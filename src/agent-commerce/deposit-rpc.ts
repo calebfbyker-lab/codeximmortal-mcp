@@ -45,7 +45,10 @@ export function hexToBigInt(hex: string): bigint {
 
 export function padAddress(address: string): string {
   if (typeof address !== "string" || !ADDRESS.test(address)) throw new Error("invalid_address");
-  return "0x000000000000000000000000" + address.toLowerCase();
+  // Strip the 0x prefix before padding: the padded topic is exactly 66
+  // characters. The earlier version concatenated the prefixed address and
+  // emitted malformed 68-character topics, breaking every getLogs filter.
+  return "0x" + "0".repeat(24) + address.slice(2).toLowerCase();
 }
 
 function topicAddress(topic: string): string {

@@ -6,7 +6,7 @@ import { composeCommerceWorkerProviders, commerceWorkerFromEnvironment } from ".
 const principal: Principal = { buyerId: "00000000-0000-4000-8000-000000000001", clientId: "agent", scopes: ["services:execute"] };
 const payload = (id: string) => ({
   id, sourceUrl: "https://example.test/pricing", capturedAt: "2026-11-12T13:00:00.000Z", coverage: "partial",
-  plans: [{ id: "basic", name: "Basic", amount: 10, currency: "USD", interval: "month", evidence: { text: "10", token: "10" } }],
+  plans: [{ id: "basic", name: "Basic", amount: 10, currency: "USD", interval: "month", evidence: { text: "10", token: "10", sourceStart: 0, sourceEnd: 2 } }],
 });
 
 function repositoryPool(rows: unknown) {

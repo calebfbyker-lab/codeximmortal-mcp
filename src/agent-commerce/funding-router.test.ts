@@ -2,7 +2,7 @@ import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import express from "express";
 import { describe, expect, it, vi } from "vitest";
-import type { Principal } from "./api.js";
+import { ApiError, type Principal } from "./api.js";
 import { createAgentFundingRouter, type DepositInstructions, type FundingRouterDependencies } from "./funding-router.js";
 
 const principal: Principal = { buyerId: "00000000-0000-4000-8000-000000000001", clientId: "agent", scopes: ["funding:create"] };
@@ -105,7 +105,7 @@ describe("agent funding router", () => {
     expect(((await replay.json()) as { data: DepositInstructions }).data.orderId).toBe("order-1");
   });
   it("propagates backend policy errors without leaking details", async () => {
-    const response = await post(makeDeps({ backend: { create: async () => { throw Object.assign(new Error("private"), { status: 404, code: "unknown_package" }); } } }), request({ packageId: "missing" }));
+    const response = await post(makeDeps({ backend: { create: async () => { throw new ApiError(404, "unknown_package"); } } }), request({ packageId: "missing" }));
     expect(response.status).toBe(404);
     expect((await errorBody(response)).error.code).toBe("unknown_package");
   });
