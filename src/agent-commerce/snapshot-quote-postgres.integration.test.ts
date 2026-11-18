@@ -18,8 +18,8 @@ if (url) {
   const parsed = new URL(url);
   if (!['postgres:', 'postgresql:'].includes(parsed.protocol) ||
       !['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname) ||
-      parsed.pathname !== '/codex_quote_test' || parsed.search || parsed.hash) {
-    throw new Error('local_codex_quote_test_database_required');
+      parsed.search || parsed.hash) {
+    throw new Error('local_postgres_test_database_required');
   }
 }
 
