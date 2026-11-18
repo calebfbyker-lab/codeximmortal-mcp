@@ -3,6 +3,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { createServer, type ToolDef } from "./server.js";
 import type { Catalog } from "./catalog.js";
 import { createAgentCommerceRouter, type Dependencies } from "./agent-commerce/api.js";
+import { createAgentFundingRouter, type FundingRouterDependencies } from "./agent-commerce/funding-router.js";
 import { createRequestDispatcher } from "./agent-commerce/mcp-dispatch.js";
 
 export interface HttpAppOptions {
@@ -10,6 +11,7 @@ export interface HttpAppOptions {
   catalog: Catalog;
   agentCardJson: string;
   commerce: Dependencies;
+  funding?: FundingRouterDependencies;
   dispatch: (name: string, args: Record<string, unknown>) => Promise<unknown>;
   storefrontRouter: RequestHandler;
   pricingRoute: string;
@@ -23,6 +25,9 @@ export function createHttpApp(options: HttpAppOptions) {
   app.disable("x-powered-by");
   // Existing prepaid storefront owns its parser and remains a separate authority.
   app.use(options.storefrontRouter);
+  // Funding router mounts first at the shared prefix and has no catch-all 404,
+  // so commerce routes below remain reachable.
+  if (options.funding) app.use("/api/v1/agent", createAgentFundingRouter(options.funding));
   app.use("/api/v1/agent", createAgentCommerceRouter(options.commerce));
   app.post(PRICING_ROUTE, express.json({ limit: "8kb", strict: true }));
   app.use(express.json());

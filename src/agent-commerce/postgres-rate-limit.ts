@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import { createHash } from "node:crypto";
 import { ApiError } from "./api.js";
-const LIMITS: Record<string, number> = { quote: 30, submit: 10, job: 120, result: 120 };
+const LIMITS: Record<string, number> = { quote: 30, submit: 10, job: 120, result: 120, funding_create: 10 };
 export function postgresLimiter(pool: Pool) {
   return async (buyerId: string, clientId: string, operation: string) => {
     if (!Object.hasOwn(LIMITS, operation)) throw new ApiError(400, "unknown_operation");

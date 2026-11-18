@@ -25,29 +25,29 @@ Agentic payments travel on two rails:
 
 ## Verified state
 
-| Component | Status | Evidence at commit `030e1fd` |
+| Component | Status | Evidence |
 |---|---|---|
 | x402 direct rail | Testnet scaffold, operator-gated for mainnet | `src/x402-routes.ts`; mainnet requires `X402_MAINNET_APPROVED=true`, funded `X402_PAY_TO`, reviewed `PRICING_APPROVED_URLS`; code notes absence of order recovery |
 | Commerce API (quotes, jobs, results) | Implemented, integration-tested; disabled by default | `src/agent-commerce/`, `AGENT_COMMERCE_ENABLED` gate |
 | Durable worker composition | Committed `67798b1`, CI verdict pending at time of writing | `src/agent-commerce/commerce-worker.ts` |
-| Funding core (orders, event inbox, atomic credit) | Committed `a99912a`, import fix `030e1fd`, CI verdict pending at time of writing | `postgres-funding.ts`, `standalone_commerce_funding_v1.sql`; provider set is `stripe | crypto`, crypto path is first-class |
+| Funding core (orders, event inbox, atomic credit) | Committed `a99912a`, import fix `030e1fd`, CI verdict pending at time of writing | `postgres-funding.ts`, `standalone_commerce_funding_v1.sql`; provider set is `stripe \| crypto`, crypto path is first-class |
+| Agent-facing funding API | Implemented this increment, CI verdict pending at time of writing | `funding-router.ts`, `postgres-funding-orders.ts`, `migrations/standalone_commerce_funding_api_v1.sql`; scope `funding:create`; packages ship inactive; creating an intent performs no financial writes |
 | Crypto deposit adapter | Not implemented | — |
-| Agent-facing funding API | Not implemented | — |
 | Prices for any service | Not set; all services remain unpriced | — |
 | Deployment of commerce or worker | Not performed | — |
 
 The funding core is rail-agnostic by design: adapters verify money arrival and
 call `credit()`; buyer identity always comes from the persisted funding order,
-never from event metadata. The crypto deposit adapter requires zero changes to
-the settlement core.
+never from event metadata. The agent-facing funding API is the buyer-authorized
+front door: it binds an authenticated buyer/client to an operator-configured
+deposit package and returns instructions. It never credits balances.
 
 ## Build order
 
-1. Agent-facing funding API: authenticated, scope-gated order creation returning
-deposit instructions (amount, receiving address, payment reference, expiry).
+1. Agent-facing funding API — implemented this increment; CI verdict pending.
 2. Crypto deposit adapter: watch-only deposit-address detection, confirmation
    policy for reorg safety on Base, feeding verified transfers into
-   `PostgresFunding.credit` with the transaction hash as `provider_ref`.
+   `PostgresFunding.credit` matched to the intent's `reference`.
 3. x402 mainnet go-live decision: operator gate, plus a decision on whether to
    add post-payment order recovery before going live.
 4. Optional, later, owner decision: codeximmortal.com credits agent wallets
@@ -57,9 +57,10 @@ deposit instructions (amount, receiving address, payment reference, expiry).
 
 No rail goes live without explicit owner approval of all of: real delivery
 verified, funding verified, prices set, deployment performed. Enabling commerce,
-flipping `X402_MAINNET_APPROVED`, setting prices, and publishing to registries
-are each irreversible public-facing decisions and each requires separate human
-approval. Nothing in this file authorizes activation.
+flipping `X402_MAINNET_APPROVED`, setting prices, activating deposit packages,
+and publishing to registries are each irreversible public-facing decisions and
+each requires separate human approval. Nothing in this file authorizes
+activation.
 
 ## Evolution rules
 
@@ -82,3 +83,5 @@ committed-unverified, or not-implemented. Never present a committed-but-unverifi
 component as operational.
 8. Every commit in this area updates this file's Verified state table or is
 flagged as leaving it stale.
+9. Funding order creation performs no financial writes: no wallet rows, no
+ledger rows, no credits. Deposit intents and money movement are separate events.

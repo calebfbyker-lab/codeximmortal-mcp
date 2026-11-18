@@ -20,6 +20,7 @@ const app = createHttpApp({
   catalog: loadCatalog(),
   agentCardJson: findProjectFile("well-known/agent-card.json"),
   commerce: agentCommerce.dependencies,
+  funding: agentCommerce.funding,
   dispatch: dispatchTool,
   storefrontRouter: createWebToJsonRouter(),
   pricingRoute: PRICING_ROUTE,
