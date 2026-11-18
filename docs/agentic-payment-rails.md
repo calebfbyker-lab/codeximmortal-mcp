@@ -31,8 +31,8 @@ Agentic payments travel on two rails:
 | Commerce API (quotes, jobs, results) | Implemented, integration-tested; disabled by default | `src/agent-commerce/`, `AGENT_COMMERCE_ENABLED` gate |
 | Durable worker composition | Committed `67798b1`, CI verdict pending at time of writing | `src/agent-commerce/commerce-worker.ts` |
 | Funding core (orders, event inbox, atomic credit) | Committed `a99912a`, import fix `030e1fd`, CI verdict pending at time of writing | `postgres-funding.ts`, `standalone_commerce_funding_v1.sql`; provider set is `stripe \| crypto`, crypto path is first-class |
-| Agent-facing funding API | Implemented this increment, CI verdict pending at time of writing | `funding-router.ts`, `postgres-funding-orders.ts`, `migrations/standalone_commerce_funding_api_v1.sql`; scope `funding:create`; packages ship inactive; creating an intent performs no financial writes |
-| Crypto deposit adapter | Not implemented | — |
+| Agent-facing funding API | Committed `be5077d`, CI verdict pending at time of writing | `funding-router.ts`, `postgres-funding-orders.ts`, `standalone_commerce_funding_api_v1.sql`; scope `funding:create`; packages ship inactive; creating an intent performs no financial writes |
+| Crypto deposit adapter | Implemented this increment, CI verdict pending at time of writing | `deposit-worker.ts`, `deposit-rpc.ts`, `migrations/standalone_commerce_deposit_v1.sql`; RPC poller with confirmation window; attribution by per-intent unique deposit amounts |
 | Prices for any service | Not set; all services remain unpriced | — |
 | Deployment of commerce or worker | Not performed | — |
 
@@ -40,14 +40,19 @@ The funding core is rail-agnostic by design: adapters verify money arrival and
 call `credit()`; buyer identity always comes from the persisted funding order,
 never from event metadata. The agent-facing funding API is the buyer-authorized
 front door: it binds an authenticated buyer/client to an operator-configured
-deposit package and returns instructions. It never credits balances.
+deposit package and returns instructions with a network-unique deposit amount.
+It never credits balances. The deposit adapter verifies transfers on-chain
+(token, recipient, exact amount, confirmation window) and settles through the
+funding core only.
+
+Known v1 limitations of the deposit adapter: expired-but-pending intents retain
+their unique deposit amounts (slots are released only by finalization), and
+unmatched transfers are logged rather than persisted for reconciliation.
 
 ## Build order
 
-1. Agent-facing funding API — implemented this increment; CI verdict pending.
-2. Crypto deposit adapter: watch-only deposit-address detection, confirmation
-   policy for reorg safety on Base, feeding verified transfers into
-   `PostgresFunding.credit` matched to the intent's `reference`.
+1. Agent-facing funding API — committed `be5077d`, CI verdict pending.
+2. Crypto deposit adapter — implemented this increment; CI verdict pending.
 3. x402 mainnet go-live decision: operator gate, plus a decision on whether to
    add post-payment order recovery before going live.
 4. Optional, later, owner decision: codeximmortal.com credits agent wallets
@@ -85,3 +90,6 @@ component as operational.
 flagged as leaving it stale.
 9. Funding order creation performs no financial writes: no wallet rows, no
 ledger rows, no credits. Deposit intents and money movement are separate events.
+10. Deposit attribution is by unique deposit amount: one verified transfer
+amount on one network attributes to at most one pending intent, enforced by a
+partial unique index. Receiving addresses remain watch-only.

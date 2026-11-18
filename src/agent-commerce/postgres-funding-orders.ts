@@ -26,10 +26,10 @@ function instructionsFromRow(row: Record<string, unknown>): DepositInstructions 
  * PostgreSQL deposit-intent backend for the agent funding API. Creating an
  * intent never writes wallet or ledger rows: it binds an authenticated
  * buyer/client to an operator-configured package and returns deposit
- * instructions. Buyer identity for any later credit comes from the persisted
- * funding order, never from request input. Lock order is buyer first, then
- * delegation — the order used by admission, worker settlement, and funding
- * settlement.
+ * instructions with a network-unique deposit amount. Buyer identity for any
+ * later credit comes from the persisted funding order, never from request
+ * input. Lock order is buyer first, then delegation — the order used by
+ * admission, worker settlement, and funding settlement.
  */
 export class PostgresFundingOrders implements FundingOrderBackend {
   private readonly s: string;
@@ -83,6 +83,22 @@ export class PostgresFundingOrders implements FundingOrderBackend {
         `SELECT count(*)::int AS n FROM ${this.s}.funding_orders
           WHERE buyer_id=$1 AND provider='crypto' AND status='pending' AND expires_at>clock_timestamp()`, [buyerId]);
       if (open.rows[0].n >= packageRow.max_open_intents) throw new ApiError(429, "funding_limit", 60);
+      // Unique deposit amount: every pending crypto intent on this network
+      // holds a distinct amount_atomic in [base, base + atomic_uniqueness),
+      // so one on-chain transfer amount attributes to at most one intent.
+      // The partial unique index enforces this; a racing insert rolls back
+      // and the agent retries the same idempotency key.
+      const used = await c.query(
+        `SELECT amount_atomic FROM ${this.s}.funding_orders WHERE provider='crypto' AND status='pending' AND network=$1`,
+        [packageRow.network]);
+      const taken = new Set(used.rows.map((row: { amount_atomic: unknown }) => String(row.amount_atomic)));
+      const base = BigInt(packageRow.amount_atomic);
+      let amountAtomic: bigint | undefined;
+      for (let u = 0; u < Number(packageRow.atomic_uniqueness); u++) {
+        const candidate = base + BigInt(u);
+        if (!taken.has(candidate.toString())) { amountAtomic = candidate; break; }
+      }
+      if (amountAtomic === undefined) throw new ApiError(429, "funding_slots_exhausted", 60);
       const id = randomUUID();
       const ref = `dep_${randomUUID()}`;
       const inserted = await c.query(
@@ -92,7 +108,7 @@ export class PostgresFundingOrders implements FundingOrderBackend {
          VALUES($1,$2,'crypto',$3,$4,$5,$6,clock_timestamp()+($7::int*interval '1 second'),$8,$9,$10,$11,$12,$13)
          RETURNING id, provider_ref, status, expires_at, network, token_contract, asset_symbol, decimals, recipient_address, amount_atomic, amount_minor, currency`,
         [id, buyerId, ref, packageRow.mode, packageRow.amount_minor, packageRow.currency, packageRow.ttl_seconds,
-         packageRow.network, packageRow.token_contract, packageRow.asset_symbol, packageRow.decimals, packageRow.recipient_address, packageRow.amount_atomic]);
+         packageRow.network, packageRow.token_contract, packageRow.asset_symbol, packageRow.decimals, packageRow.recipient_address, amountAtomic.toString()]);
       await c.query(
         `INSERT INTO ${this.s}.funding_intent_keys(buyer_id, client_id, idempotency_key, package_id, order_id)
          VALUES($1,$2,$3,$4,$5)`, [buyerId, p.clientId, key, packageId, id]);

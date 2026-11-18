@@ -122,6 +122,16 @@ describe.runIf(Boolean(url))("agent funding order creation", () => {
     expect((await counts()).orders).toBe(1);
   });
 
+  it("mints a unique deposit amount for each concurrent intent", async () => {
+    const first = await createOrder("pkg-basic", "integration-key-uniq-1");
+    const second = await createOrder("pkg-basic", "integration-key-uniq-2");
+    const a = ((await first.json()) as { data: { amountAtomic: string } }).data.amountAtomic;
+    const b = ((await second.json()) as { data: { amountAtomic: string } }).data.amountAtomic;
+    expect(a).not.toBe(b);
+    expect([a, b].sort()).toEqual(["500000000", "500000001"]);
+    expect((await counts()).orders).toBe(2);
+  });
+
   it("conflicts when the same key reuses a different package", async () => {
     await createOrder("pkg-basic", "integration-key-0003");
     const response = await createOrder("pkg-eur", "integration-key-0003");
