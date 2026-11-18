@@ -50,7 +50,7 @@ describe.runIf(Boolean(url))("durable execution and settlement",()=>{
     const args=vi.mocked(providers.capture).mock.calls[0];expect(args[0].buyerId).toBe(buyer);expect(args[2]?.jobId).toBe(j.id);
     expect(await worker.runOnce()).toBe("idle");
   });
-  it("runs comparison through existing adapter",async()=>{await enqueue("pricing_compare",{beforeId:"before",afterId:"after"});expect(await worker.runOnce()).toBe("succeeded");expect(providers.snapshot).toHaveBeenCalledTimes(2);});
+  it("runs comparison through existing adapter",async()=>{await enqueue("pricing_compare",{beforeId:"before",afterId:"after"});expect(await worker.runOnce()).toBe("succeeded");expect(providers.snapshot).toHaveBeenCalledTimes(4);});
   it("runs document validation through existing adapter",async()=>{await enqueue("document_extract",{documentId:"doc",profile:"scalar-fields-v1",fields:["name"]});expect(await worker.runOnce()).toBe("succeeded");});
   it("duplicate completion cannot double-consume or duplicate receipt",async()=>{await enqueue();const l=await lease();expect(await worker.finish(l,{ok:true,value:snapshot()})).toBe("succeeded");expect(await worker.finish(l,{ok:true,value:snapshot()})).toBe("already_finalized");expect((await accounting()).spent_minor).toBe("100");expect((await accounting()).receipts).toBe(1);});
   it("expired owner cannot renew or settle after re-lease",async()=>{

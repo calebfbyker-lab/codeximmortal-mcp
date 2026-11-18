@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { Pool } from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Principal } from "../agent-commerce/api.js";
 import { executeService, type Providers } from "../agent-commerce/worker.js";
 import { SnapshotProvider, type SafePageFetch } from "../agent-services/snapshot-provider.js";
@@ -40,6 +40,15 @@ describe.runIf(Boolean(databaseUrl))("PostgreSQL snapshot source store and sink 
     fetched.push(url);
     return { body: bodies[Math.min(fetchCount++, bodies.length - 1)], contentType: "application/json" };
   } };
+
+  beforeEach(() => {
+    // The fetcher is sequence-based; reset it so each test starts from the
+    // first fixture body. Refetching the same source then yields identical
+    // snapshot content, which is the precondition the idempotency test
+    // exercises — the sink must reject any retry whose content drifted.
+    fetchCount = 0;
+    fetched.length = 0;
+  });
 
   beforeAll(async () => {
     admin = new Pool({ connectionString: databaseUrl, max: 1,
