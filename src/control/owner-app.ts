@@ -10,7 +10,8 @@ import type { OwnerGovernanceAgent, OwnerGovernanceView } from './owner-governan
 import { registerOwnerOrders, type OwnerOrdersStore } from './owner-orders-http.js';
 import type { AnalyticsStore } from './owner-analytics.js';
 import { registerOwnerPipeline, type PipelineWorkflow } from './owner-pipeline.js';
-
+import { registerGrowthRoutes } from '../growth/owner-routes.js';
+import type { GrowthRuntime } from '../growth/runtime.js';
 export interface OwnerConfig { origin: string; owner: string; saltHex: string; hashHex: string; revision: string }
 export interface OwnerTaskStore {
   propose(key: string, objective: string, baseline: string): Promise<OwnerTask>;
@@ -40,7 +41,7 @@ const knownTaskErrors = new Set([...configurationErrors, 'invalid_task_proposal'
   'task_capacity_reached', 'invalid_objective', 'invalid_baseline', 'task_transition_denied', 'owner_task_failed']);
 
 // Isolated single-process local console; never mounted by public http.ts.
-export function createOwnerControlApp(input?: OwnerConfig, now: () => number = Date.now, tasks?: OwnerTaskStore, governance?: OwnerGovernanceStore, analytics?: AnalyticsStore, workflow?: PipelineWorkflow, orders?: OwnerOrdersStore) {
+export function createOwnerControlApp(input?: OwnerConfig, now: () => number = Date.now, tasks?: OwnerTaskStore, governance?: OwnerGovernanceStore, analytics?: AnalyticsStore, workflow?: PipelineWorkflow, orders?: OwnerOrdersStore, growth?: GrowthRuntime) {
   if (!input || !/^[A-Za-z0-9_.@-]{1,100}$/.test(input.owner) ||
       !/^[a-f0-9]{32}$/.test(input.saltHex) || !/^[a-f0-9]{128}$/.test(input.hashHex) ||
       !/^[a-f0-9]{40}$/.test(input.revision)) throw new Error('owner_configuration_required');
@@ -153,8 +154,9 @@ export function createOwnerControlApp(input?: OwnerConfig, now: () => number = D
   });
   registerOwnerOrders(app, current, orders);
   registerOwnerPipeline(app, { owner, revision, now, current, guarded, workflow, analytics, taskQueueConnected: Boolean(tasks) });
+  if (growth) registerGrowthRoutes(app, current, guarded, growth);
   app.get('/', async (req, res) => {
-    const s = current(req); if (!s) { res.redirect(303, '/login'); return; }
+    const s = current(req); if (!s) { res.redirect(303,'/login'); return; }
     const requested = typeof req.query.view === 'string' ? req.query.view : 'overview';
     if (!['services','blockers','runtime','tasks','revenue','pipeline'].includes(requested)) {
       const snapshot = await readWorkQueue();
