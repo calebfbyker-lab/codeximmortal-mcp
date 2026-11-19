@@ -24,9 +24,9 @@ describe.runIf(Boolean(url))('owner growth routes against disposable PostgreSQL'
   const servers: Server[] = [];
   beforeAll(async () => {
     pool = new Pool({ connectionString: url, max: 6, connectionTimeoutMillis: 5000, statement_timeout: 10000 });
-    await pool.query('CREATE SCHEMA "' + schema + '"');
-    created = true;
+    // The 007 migration creates the schema itself; do not pre-create it.
     await pool.query(readFileSync(new URL('../../migrations/007_growth_runtime.sql', import.meta.url), 'utf8').replaceAll('growth_runtime', schema));
+    created = true;
     // Routing adapter only: real connections and queries against the isolated test schema.
     const isolated = {
       query,
