@@ -20,19 +20,28 @@ Optional: GROWTH_WORKER_NAME (default local-worker), GROWTH_WORKER_POLL_MS (100.
 ## Local AI planning and evolution loop
 src/growth/local-ai.ts adapts a fixed loopback Ollama endpoint (http://127.0.0.1:11434/api/chat) with structured-output enforcement, bounded context (24KB) and response (64KB), no cloud fallback, and model-name rejection for cloud tags. Model-name checks cannot detect a custom alias backed by a remote service; the local Ollama server must also be configured local-only.
 
-src/growth/repo-context.ts collects read-only, allowlisted repository facts: file names and sizes under src/growth, plus the contents of the growth docs. Nothing else is read; secrets stay out of model input. Output is bounded to 12KB with an explicit truncation marker.
+src/growth/repo-context.ts collects read-only, allowlisted repository facts: file names and sizes under src/growth, plus the contents of the growth docs. Missing or non-directory roots throw invalid_repo_root before any context is collected. Nothing else is read; secrets stay out of model input. Output is bounded to 12KB with an explicit truncation marker.
 
 src/growth/evolve.ts runs one recursion step: the objective, the last five stored candidate objectives (history, not authority), and the repo context go to the local model; the validated plan is stored durably in growth_runtime.candidates (migrations/008_growth_candidates.sql, apply manually) with a context digest. Identical model+objective+context runs dedupe instead of duplicating. Each subsequent run sees prior candidates, which is the recursion; candidates remain unreviewed until the owner accepts or rejects them. Nothing in this loop executes, approves, integrates or releases anything.
 
+Run it with CLI flags (shell-agnostic) or environment variables. GROWTH_LOCAL_AI=on is the required gate in both forms.
+
+```cmd
+npm run build
+set GROWTH_LOCAL_AI=on
+npm run growth:evolve -- --model llama3:latest --objective "Improve the owner dashboard review flow with evidence per proposal" --db postgres://user:pass@localhost:5432/disposable_db
+```
+
 ```powershell
 npm run build
-# apply migrations/007_growth_runtime.sql and 008_growth_candidates.sql first
-$env:DATABASE_URL='postgres://...'
 $env:GROWTH_LOCAL_AI='on'
 $env:GROWTH_LOCAL_MODEL='llama3:latest'
 $env:GROWTH_EVOLVE_OBJECTIVE='Improve the owner dashboard review flow with evidence per proposal'
+$env:DATABASE_URL='postgres://...'
 npm run growth:evolve
 ```
+
+CLI flags override env vars: --model, --objective, --db. In cmd.exe, quote the objective in double quotes. Apply migrations/007_growth_runtime.sql and migrations/008_growth_candidates.sql to an approved disposable database before use. A database URL passed via --db appears in the process list and shell history; prefer env vars for shared machines.
 
 Predictive ranking of candidates is deliberately not included: there are no accepted/rejected outcomes to learn from yet. Add outcome labeling first, then an evaluated ranking model behind the owner gate.
 
@@ -52,6 +61,6 @@ readFulfilledCharges returns decimal strings grouped by currency for a job-creat
 - src/growth/local-ai.test.ts: five adapter boundary tests.
 - src/growth/repo-context.test.ts: three allowlist and budget tests.
 - src/growth/evolve.test.ts: four recursion, dedupe and rejection tests.
-- Recorded local evidence (user-reported, not remote CI): 2026-11-19 vitest 2.1.9, build clean and 36/36 growth tests at 2e3a69a; earlier 17/17 and 531/531 on prior commits.
+- Recorded local evidence (user-reported, not remote CI): 2026-11-19 vitest 2.1.9, build clean and 36/36 growth tests at 2e3a69a; earlier 17/17 and 531/531 on prior commits. Commits 1d34a05, 1191023 and 132c8f1 add the evolution loop and are not yet locally verified.
 
 Next increments: owner dashboard view for candidates and outcome labeling; recurring lease renewal for long inference; model timeout and think controls; scoped repo tools beyond read-only context; isolated patch execution; commercial adapters; evaluated ranking only after outcomes exist. AX telemetry, certification and exercises remain outstanding.
