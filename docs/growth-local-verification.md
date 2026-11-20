@@ -21,6 +21,21 @@ The script checks database connectivity and existence of the two growth target t
 
 Do not disable database authentication as part of this workflow. If earlier manual troubleshooting left temporary trust rules in pg_hba.conf, restore the original authenticated configuration before proceeding.
 
+## PowerShell-assisted setup
+
+scripts/setup-growth-postgres.ps1 automates the database half of local setup: it sets PGPASSWORD for the process only, invokes psql with --no-password and ON_ERROR_STOP, optionally creates a dedicated development database (default codex_growth_dev), applies migrations 007 and 008, verifies the expected tables and the paused policy flag, and writes a credential-free timestamped log under the Windows temporary directory. It requires the actual PostgreSQL password; it does not reset or bypass authentication.
+
+This is a PowerShell script: run it from a PowerShell prompt (powershell.exe -NoProfile), never by pasting its lines into Command Prompt. Example:
+
+```powershell
+$password = Read-Host 'Actual PostgreSQL password' -AsSecureString
+.\scripts\setup-growth-postgres.ps1 -Password $password -CreateDatabase -ConfirmDisposableDatabase
+$password.Dispose()
+Remove-Variable password
+```
+
+If PowerShell reports that script execution is disabled, stop and review options locally rather than weakening system-wide execution policy. After setup, point DATABASE_URL at the dedicated database and re-run node scripts/growth-doctor.mjs to confirm.
+
 ## Verification sequence
 
 ```cmd
