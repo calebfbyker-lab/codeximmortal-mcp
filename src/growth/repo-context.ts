@@ -1,14 +1,15 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-// Read-only, allowlisted repository context for local planning.
-// Only these paths are ever read; secrets and unrelated files stay out of model input.
 const DIR_ALLOWLIST = ['src/growth'];
 const FILE_ALLOWLIST = ['docs/growth-runtime.md', 'docs/growth-postgres-verification.md'];
 
 export function collectRepoContext(root: string = process.cwd(), budget = 12000): string {
-  const base = resolve(root);
-  if (!statSync(base).isDirectory()) throw Error('invalid_repo_root');
+  let base: string;
+  try {
+    base = resolve(root);
+    if (!statSync(base).isDirectory()) throw Error('invalid_repo_root');
+  } catch { throw Error('invalid_repo_root'); }
   const parts: string[] = [];
   parts.push('Repository facts (read-only, allowlisted):');
   for (const dir of DIR_ALLOWLIST) {
