@@ -18,6 +18,7 @@
     "start:stdio": "node dist/index.js",
     "growth:worker": "node dist/growth/worker-main.js",
     "growth:evolve": "node dist/growth/evolve-main.js",
+    "growth:migrate": "node dist/growth/migrate-main.js",
     "test": "vitest run",
     "test:db": "vitest run src/persistence/postgres-snapshot-repository.integration.test.ts"
   },

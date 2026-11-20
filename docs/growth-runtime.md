@@ -22,7 +22,7 @@ src/growth/local-ai.ts adapts a fixed loopback Ollama endpoint (http://127.0.0.1
 
 src/growth/repo-context.ts collects read-only, allowlisted repository facts: file names and sizes under src/growth, plus the contents of the growth docs. Missing or non-directory roots throw invalid_repo_root before any context is collected. Nothing else is read; secrets stay out of model input. Output is bounded to 12KB with an explicit truncation marker.
 
-src/growth/evolve.ts runs one recursion step: the objective, the last five stored candidate objectives (history, not authority), and the repo context go to the local model; the validated plan is stored durably in growth_runtime.candidates (migrations/008_growth_candidates.sql, apply manually) with a context digest. Identical model+objective+context runs dedupe instead of duplicating. Each subsequent run sees prior candidates, which is the recursion; candidates remain unreviewed until the owner accepts or rejects them. Nothing in this loop executes, approves, integrates or releases anything.
+src/growth/evolve.ts runs one recursion step: the objective, the last five stored candidate objectives (history, not authority), and the repo context go to the local model; the validated plan is stored durably in growth_runtime.candidates (migrations/008_growth_candidates.sql) with a context digest. Identical model+objective+context runs dedupe instead of duplicating. Each subsequent run sees prior candidates, which is the recursion; candidates remain unreviewed until the owner accepts or rejects them. Nothing in this loop executes, approves, integrates or releases anything.
 
 Run it with CLI flags (shell-agnostic) or environment variables. GROWTH_LOCAL_AI=on is the required gate in both forms.
 
@@ -41,12 +41,21 @@ $env:DATABASE_URL='postgres://...'
 npm run growth:evolve
 ```
 
-CLI flags override env vars: --model, --objective, --db. In cmd.exe, quote the objective in double quotes. Apply migrations/007_growth_runtime.sql and migrations/008_growth_candidates.sql to an approved disposable database before use. A database URL passed via --db appears in the process list and shell history; prefer env vars for shared machines.
+CLI flags override env vars: --model, --objective, --db. In cmd.exe, quote the objective in double quotes. A database URL passed via --db appears in the process list and shell history; prefer env vars for shared machines.
+
+## Local migration runner
+src/growth/migrate-main.ts applies migrations/007_growth_runtime.sql and 008_growth_candidates.sql through the pg driver, so no psql install is needed. It requires the disposable-database acknowledgment (CODEX_MIGRATE_ACK=disposable-database-only, matching the integration-test convention) and a --db flag or DATABASE_URL. Each migration is skipped when its target table already exists, so the command is safe to re-run. It only creates tables; it drops nothing.
+
+```cmd
+npm run build
+set CODEX_MIGRATE_ACK=disposable-database-only
+npm run growth:migrate -- --db postgres://user:pass@localhost:5432/disposable_db
+```
 
 Predictive ranking of candidates is deliberately not included: there are no accepted/rejected outcomes to learn from yet. Add outcome labeling first, then an evaluated ranking model behind the owner gate.
 
 ## Repository integration
-Uses existing pg, Express and Vitest dependencies and reads real agent_commerce.jobs columns. Apply migrations manually only to an approved disposable database for verification. No automatic migration or activation occurs. GrowthRuntime accepts a Pool; one trusted operator per schema.
+Uses existing pg, Express and Vitest dependencies and reads real agent_commerce.jobs columns. GrowthRuntime accepts a Pool; one trusted operator per schema.
 
 createOwnerControlApp accepts an optional growth: GrowthRuntime parameter. When supplied, registerGrowthRoutes(app, current, guarded, growth) mounts GET/POST /api/growth/runs behind the existing owner session, Origin and CSRF guards and the existing 2kb body limits. Reads require a live session; writes require Origin plus CSRF. When no runtime is supplied the routes stay unmounted. No dashboard view for candidates, external collector, LLM training pipeline or deployment is included, and no agent can self-grant authority through these routes.
 
@@ -61,6 +70,6 @@ readFulfilledCharges returns decimal strings grouped by currency for a job-creat
 - src/growth/local-ai.test.ts: five adapter boundary tests.
 - src/growth/repo-context.test.ts: three allowlist and budget tests.
 - src/growth/evolve.test.ts: four recursion, dedupe and rejection tests.
-- Recorded local evidence (user-reported, not remote CI): 2026-11-19 vitest 2.1.9, build clean and 36/36 growth tests at 2e3a69a; earlier 17/17 and 531/531 on prior commits. Commits 1d34a05, 1191023 and 132c8f1 add the evolution loop and are not yet locally verified.
+- Recorded local evidence (user-reported, not remote CI): 2026-11-19 vitest 2.1.9, build clean and 36/36 growth tests at 2e3a69a; earlier 17/17 and 531/531 on prior commits. Commits 1d34a05 through 7fc4c14 add the evolution loop and are locally verified only for build (2026-11-20); growth:migrate is new and unverified.
 
 Next increments: owner dashboard view for candidates and outcome labeling; recurring lease renewal for long inference; model timeout and think controls; scoped repo tools beyond read-only context; isolated patch execution; commercial adapters; evaluated ranking only after outcomes exist. AX telemetry, certification and exercises remain outstanding.
