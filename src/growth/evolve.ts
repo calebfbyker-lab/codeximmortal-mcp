@@ -14,12 +14,12 @@ export interface EvolveOptions {
   transport?: FetchLike;
 }
 
-interface CandidateRow { objective: string; status: string; plan: { actions?: string[] } }
+interface CandidateRow { model: string; objective: string; status: string; plan: { actions?: string[] } }
 
 export async function listRecentCandidates(pool: Pool, limit = 5): Promise<string[]> {
   const bounded = Math.min(Math.max(Math.trunc(limit) || 0, 1), 20);
-  const r = await pool.query('SELECT objective, status, plan FROM growth_runtime.candidates ORDER BY created_at DESC LIMIT $1', [bounded]);
-  return (r.rows as CandidateRow[]).map(row => `objective=${row.objective.slice(0, 200)} status=${row.status} actions=${row.plan.actions?.length ?? 0}`);
+  const r = await pool.query('SELECT model, objective, status, plan FROM growth_runtime.candidates ORDER BY created_at DESC LIMIT $1', [bounded]);
+  return (r.rows as CandidateRow[]).map(row => `model=${row.model} objective=${row.objective.slice(0, 200)} status=${row.status} actions=${row.plan.actions?.length ?? 0}`);
 }
 
 export async function storeCandidate(pool: Pool, model: string, objective: string, contextDigest: string, plan: Record<string, unknown>): Promise<{ id: string; duplicate: boolean }> {
@@ -33,9 +33,9 @@ export async function storeCandidate(pool: Pool, model: string, objective: strin
   return { id: String(existing.rows[0].id), duplicate: true };
 }
 
-// One recursion step: repo facts + prior candidate history -> local model plan
-// -> durable candidate. Output remains advisory: nothing here executes, approves,
-// integrates or releases anything.
+// One recursion step: repo facts + prior candidate history (model-attributed,
+// owner-labeled) -> local model plan -> durable candidate. Output remains
+// advisory: nothing here executes, approves, integrates or releases anything.
 export async function evolveOnce(pool: Pool, options: EvolveOptions): Promise<{ id: string; duplicate: boolean; model: string; objective: string }> {
   if (typeof options?.model !== 'string' || typeof options?.objective !== 'string' || !options.objective.trim() || options.objective.length > 2000) throw Error('invalid_objective');
   const repo = collectRepoContext(options.root);

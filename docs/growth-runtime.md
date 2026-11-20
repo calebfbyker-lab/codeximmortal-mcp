@@ -1,6 +1,6 @@
 # Growth runtime foundation
 
-Status: PROVISIONAL / UNCERTIFIED. No CI identifier assigned. Dispatch stays paused by default; this is a bounded deterministic proposal runtime with a local worker and a local planning loop, not a self-training swarm or an autonomous sales system.
+Status: PROVISIONAL / UNCERTIFIED. No CI identifier assigned. Dispatch stays paused by default; this is a bounded deterministic proposal runtime with a local worker, a local planning loop, a bounded agent swarm, and owner outcome labeling — not a self-training swarm or an autonomous sales system. Learning is history-conditioning over owner-labeled outcomes, not weight training.
 
 ## Architecture
 Recorded observations -> idempotent enqueue -> paused-by-default PostgreSQL queue -> local worker claim -> server-side recomputation -> stored proposal -> separate owner review. Acquisition preserves evidence without inferring purchase intent; conversion proposes a cohort experiment after 30 observations; pricing records an owner-gated review; code evolution proposes investigation after five failures. No agent executes outreach, prices, payments, code patches or deployments.
@@ -22,7 +22,7 @@ src/growth/local-ai.ts adapts a fixed loopback Ollama endpoint (http://127.0.0.1
 
 src/growth/repo-context.ts collects read-only, allowlisted repository facts: file names and sizes under src/growth, plus the contents of the growth docs. Missing or non-directory roots throw invalid_repo_root before any context is collected. Nothing else is read; secrets stay out of model input. Output is bounded to 12KB with an explicit truncation marker.
 
-src/growth/evolve.ts runs one recursion step: the objective, the last five stored candidate objectives (history, not authority), and the repo context go to the local model; the validated plan is stored durably in growth_runtime.candidates (migrations/008_growth_candidates.sql) with a context digest. Identical model+objective+context runs dedupe instead of duplicating. Each subsequent run sees prior candidates, which is the recursion; candidates remain unreviewed until the owner accepts or rejects them. Nothing in this loop executes, approves, integrates or releases anything.
+src/growth/evolve.ts runs one recursion step: the objective, the last five stored candidates (model-attributed, with owner-labeled status), and the repo context go to the local model; the validated plan is stored durably in growth_runtime.candidates (migrations/008_growth_candidates.sql) with a context digest. Identical model+objective+context runs dedupe instead of duplicating. Nothing in this loop executes, approves, integrates or releases anything.
 
 Run it with CLI flags (shell-agnostic) or environment variables. GROWTH_LOCAL_AI=on is the required gate in both forms.
 
@@ -41,7 +41,23 @@ $env:DATABASE_URL='postgres://...'
 npm run growth:evolve
 ```
 
-CLI flags override env vars: --model, --objective, --db. In cmd.exe, quote the objective in double quotes. A database URL passed via --db appears in the process list and shell history; prefer env vars for shared machines.
+CLI flags override env vars: --model, --objective, --db. A database URL passed via --db appears in the process list and shell history; prefer env vars for shared machines.
+
+## Agent swarm
+src/growth/swarm.ts runs up to 4 distinct local models sequentially on one objective. Each later agent's planning context includes every stored candidate — model-attributed and outcome-labeled — so peers build on peers through shared candidate memory. There is no agent-to-agent message channel, no debate protocol, and no agent reviewing another agent's output: the database is the only meeting point. All outputs are advisory candidates.
+
+```cmd
+set GROWTH_LOCAL_AI=on
+npm run growth:swarm -- --models llama3:latest,llama3.2:latest --objective "Improve the owner dashboard review flow with evidence per proposal" --db postgres://user:pass@localhost:5432/disposable_db
+```
+
+## Candidate review (outcome labeling)
+src/growth/review.ts is the owner's labeling tool, and the only path out of unreviewed status. Agents never label candidates. A label is one-shot: accepted or rejected, no re-labeling. Labeled outcomes appear in every subsequent planning context, which is the learning loop.
+
+```cmd
+npm run growth:review -- --list --db postgres://user:pass@localhost:5432/disposable_db
+npm run growth:review -- --id <candidate-uuid> --decision accepted --db postgres://user:pass@localhost:5432/disposable_db
+```
 
 ## Local migration runner
 src/growth/migrate-main.ts applies migrations/007_growth_runtime.sql and 008_growth_candidates.sql through the pg driver, so no psql install is needed. It requires the disposable-database acknowledgment (CODEX_MIGRATE_ACK=disposable-database-only, matching the integration-test convention) and a --db flag or DATABASE_URL. Each migration is skipped when its target table already exists, so the command is safe to re-run. It only creates tables; it drops nothing.
@@ -52,7 +68,7 @@ set CODEX_MIGRATE_ACK=disposable-database-only
 npm run growth:migrate -- --db postgres://user:pass@localhost:5432/disposable_db
 ```
 
-Predictive ranking of candidates is deliberately not included: there are no accepted/rejected outcomes to learn from yet. Add outcome labeling first, then an evaluated ranking model behind the owner gate.
+Predictive ranking of candidates is deliberately not included: there are not enough labeled outcomes to learn from yet. Once a labeled corpus exists, an evaluated ranking model goes behind the owner gate.
 
 ## Repository integration
 Uses existing pg, Express and Vitest dependencies and reads real agent_commerce.jobs columns. GrowthRuntime accepts a Pool; one trusted operator per schema.
@@ -70,6 +86,7 @@ readFulfilledCharges returns decimal strings grouped by currency for a job-creat
 - src/growth/local-ai.test.ts: five adapter boundary tests.
 - src/growth/repo-context.test.ts: three allowlist and budget tests.
 - src/growth/evolve.test.ts: four recursion, dedupe and rejection tests.
-- Recorded local evidence (user-reported, not remote CI): 2026-11-19 vitest 2.1.9, build clean and 36/36 growth tests at 2e3a69a; earlier 17/17 and 531/531 on prior commits. Commits 1d34a05 through 7fc4c14 add the evolution loop and are locally verified only for build (2026-11-20); growth:migrate is new and unverified.
+- src/growth/swarm.test.ts: four swarm and review tests (requires TEST_DATABASE_URL).
+- Recorded local evidence (user-reported, not remote CI): 2026-11-19 vitest 2.1.9, build clean and 36/36 growth tests at 2e3a69a; earlier 17/17 and 531/531 on prior commits. 2026-11-20: build clean at 7fc4c14; growth:migrate committed at b713b33 blocked only by absent local PostgreSQL (ECONNREFUSED). The swarm and review increment is new and unverified.
 
-Next increments: owner dashboard view for candidates and outcome labeling; recurring lease renewal for long inference; model timeout and think controls; scoped repo tools beyond read-only context; isolated patch execution; commercial adapters; evaluated ranking only after outcomes exist. AX telemetry, certification and exercises remain outstanding.
+Next increments: dashboard view for candidates; recurring lease renewal for long inference; model timeout and think controls; cross-agent candidate exchange over an A2A-style gateway; evaluated ranking after a labeled corpus exists; isolated patch execution only ever behind the owner gate. AX telemetry, certification and exercises remain outstanding.
