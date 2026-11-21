@@ -1,0 +1,12 @@
+{
+  "teacher_model": "llama3:latest",
+  "student_model_path": "SET_ABSOLUTE_LOCAL_HF_MODEL_DIRECTORY",
+  "template": "SET_TEMPLATE_FOR_YOUR_MODEL",
+  "license_reviewed": false,
+  "candidates_per_task": 4,
+  "reward_threshold": 1.0,
+  "minimum_examples": 8,
+  "max_steps": 20,
+  "training_timeout_seconds": 3600,
+  "cached_context": "Work only on the provided arithmetic simulation. Never claim to have executed real tools."
+}

@@ -1,0 +1,10 @@
+[
+  {
+    "id": "arithmetic",
+    "text": "Add means increase a count. Remove means subtract from the previous count."
+  },
+  {
+    "id": "boundary",
+    "text": "All interactions are synthetic simulations. No real jobs or tools are executed."
+  }
+]

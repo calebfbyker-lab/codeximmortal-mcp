@@ -1,0 +1,8 @@
+<!doctype html><meta charset="utf-8"><title>CodexImmortal Local Training</title>
+<style>body{font:16px system-ui;max-width:950px;margin:35px auto;background:#111;color:#eee}button,input{padding:10px;margin:6px}pre{white-space:pre-wrap}</style>
+<h1>Local Training Companion</h1><p>Candidate-only. No repository writes, training execution, or promotion through this page.</p>
+<label>Session token <input id="token" type="password" autocomplete="off"></label>
+<div id="buttons"></div><pre id="output">Enter the token printed in your local terminal.</pre>
+<script>
+for(const name of ['status','generate','filter','export','plan']){const b=document.createElement('button');b.textContent=name;b.onclick=async()=>{try{const r=await fetch('/api/'+name,{method:'POST',headers:{Authorization:'Bearer '+document.getElementById('token').value}});document.getElementById('output').textContent=JSON.stringify(await r.json(),null,2);}catch(e){document.getElementById('output').textContent=String(e);}};document.getElementById('buttons').append(b);}
+</script>
