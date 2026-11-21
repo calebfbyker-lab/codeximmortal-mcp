@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "status": "UNCERTIFIED",
+  "profile": "loopback-fixture-only",
+  "a2a": {
+    "specification_release": "1.0.0",
+    "wire_version": "1.0",
+    "binding": "JSONRPC",
+    "sdk": "a2a-sdk==1.3.1",
+    "implemented_methods": [
+      "SendMessage",
+      "GetTask"
+    ],
+    "conformance": "NOT_CLAIMED",
+    "streaming": false,
+    "push_notifications": false
+  },
+  "mcp": {
+    "target_revision": "2026-07-28",
+    "adapter_status": "DISABLED_NOT_IMPLEMENTED",
+    "tools_exposed": []
+  },
+  "delegation": {
+    "worker": "deterministic_fixture",
+    "llama_workflow": "DISABLED_PENDING_ACCEPTANCE",
+    "concurrent_workers": 1,
+    "max_outstanding_tasks": 8,
+    "deadline_seconds": 60,
+    "recursive_spawn": false
+  },
+  "authority": {
+    "repository_read": false,
+    "repository_write": false,
+    "shell": false,
+    "external_network": false,
+    "training": false
+  },
+  "release_gates": [
+    "core tests",
+    "generated-type and HTTP tests with pinned SDK",
+    "Windows browser acceptance",
+    "AX telemetry/certification/exercise evidence before expansion"
+  ]
+}
