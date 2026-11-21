@@ -1,5 +1,6 @@
 """Real loopback HTTP fixtures; no Ollama or GPU required."""
 import http.client, http.server, importlib.util, json, pathlib, threading, time, unittest
+from unittest import mock
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('chat_transport_candidate',ROOT/'chat_transport.py')
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
@@ -36,8 +37,8 @@ class TransportTests(unittest.TestCase):
     def test_total_deadline_during_live_stream(self):
         def scenario(h):
             h.send_response(200);h.end_headers()
-            for _ in range(30):self.record(h,{'message':{'thinking':'not exposed'}});time.sleep(.015)
-        with self.assertRaisesRegex(TimeoutError,'Total generation'):self.run_stream(scenario,idle=.1,total=.14)
+            for _ in range(200):self.record(h,{'message':{'thinking':'not exposed'}});time.sleep(.015)
+        with self.assertRaisesRegex(TimeoutError,'Total generation'):self.run_stream(scenario,idle=.5,total=.5)
     def test_thinking_not_emitted(self):
         def scenario(h):
             h.send_response(200);h.end_headers();self.record(h,{'message':{'thinking':'private'}})
@@ -57,4 +58,24 @@ class TransportTests(unittest.TestCase):
     def test_truncated_stream(self):
         def scenario(h):h.send_response(200);h.end_headers();self.record(h,{'message':{'content':'partial'}})
         with self.assertRaisesRegex(ValueError,'without done'):self.run_stream(scenario)
+class DeadlineRaceTests(unittest.TestCase):
+    def simulate(self,elapsed,record=None):
+        clock=[0.0];connection=mock.Mock();response=connection.getresponse.return_value
+        response.status=200;emitted=[]
+        def read(limit):
+            clock[0]=elapsed
+            if record is not None:return (json.dumps(record)+'\n').encode()
+            raise TimeoutError('socket deadline won the race')
+        response.readline.side_effect=read
+        with mock.patch.object(m.time,'monotonic',side_effect=lambda:clock[0]), \
+             mock.patch.object(m.threading,'Timer') as timer:
+            with self.assertRaisesRegex(TimeoutError,'Total generation' if elapsed>=2 else 'network progress'):
+                m.stream('fixture',[],emitted.append,idle=1,total=2,factory=lambda *a,**k:connection)
+            timer.return_value.start.assert_called_once()
+            timer.return_value.cancel.assert_called_once()
+        connection.close.assert_called_once();self.assertEqual(emitted,[])
+    def test_socket_deadline_before_watchdog(self):self.simulate(2)
+    def test_true_idle_timeout_is_not_total(self):self.simulate(1)
+    def test_late_completed_record_is_rejected(self):
+        self.simulate(2,{'message':{'content':'late'},'done':True})
 if __name__=='__main__':unittest.main()

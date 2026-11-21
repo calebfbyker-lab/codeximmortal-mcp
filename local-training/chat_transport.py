@@ -23,6 +23,9 @@ def stream(model,messages,emit,stage=lambda value:None,usage=lambda value:None,
     if not 0<idle<=total:raise ValueError('Require 0 < idle <= total')
     c=factory(HOST,PORT,timeout=min(10,total));sock=None;timer=None
     expired=threading.Event();started=time.monotonic();chars=0;records=0
+    deadline=started+total
+    def deadline_reached():
+        return expired.is_set() or time.monotonic()>=deadline
     def expire():
         expired.set()
         if sock is not None:
@@ -30,8 +33,8 @@ def stream(model,messages,emit,stage=lambda value:None,usage=lambda value:None,
             except OSError:pass
     try:
         stage('connecting');c.connect();sock=c.sock
-        timer=threading.Timer(max(.001,total-(time.monotonic()-started)),expire);timer.daemon=True;timer.start()
-        sock.settimeout(min(idle,max(.001,total-(time.monotonic()-started))))
+        timer=threading.Timer(max(.001,deadline-time.monotonic()),expire);timer.daemon=True;timer.start()
+        sock.settimeout(min(idle,max(.001,deadline-time.monotonic())))
         body={'model':model,'messages':messages,'stream':True,'keep_alive':'5m',
               'options':{'num_predict':512}}
         if think!='default':body['think']=think=='on'
@@ -43,9 +46,10 @@ def stream(model,messages,emit,stage=lambda value:None,usage=lambda value:None,
             raise ValueError('Ollama HTTP '+str(r.status)+': '+detail[:300])
         stage('waiting for first answer token')
         while True:
-            if expired.is_set():raise TimeoutError('Total generation deadline exceeded')
-            sock.settimeout(min(idle,max(.001,total-(time.monotonic()-started))))
+            if deadline_reached():raise TimeoutError('Total generation deadline exceeded')
+            sock.settimeout(min(idle,max(.001,deadline-time.monotonic())))
             line=r.readline(65537)
+            if deadline_reached():raise TimeoutError('Total generation deadline exceeded')
             if not line:raise ValueError('Ollama stream ended without done=true')
             if len(line)>65536:raise ValueError('Oversized stream record')
             if not line.strip():continue
@@ -69,13 +73,13 @@ def stream(model,messages,emit,stage=lambda value:None,usage=lambda value:None,
                 stage('completed (token limit)' if row.get('done_reason')=='length' else 'completed')
                 return
     except (TimeoutError,socket.timeout) as exc:
-        if expired.is_set():raise TimeoutError('Total generation deadline exceeded ('+str(total)+'s)') from exc
+        if deadline_reached():raise TimeoutError('Total generation deadline exceeded ('+str(total)+'s)') from exc
         raise TimeoutError('No network progress within '+str(idle)+'s; check Ollama/model loading before retrying') from exc
     except ValueError as exc:
-        if expired.is_set():raise TimeoutError('Total generation deadline exceeded ('+str(total)+'s)') from exc
+        if deadline_reached():raise TimeoutError('Total generation deadline exceeded ('+str(total)+'s)') from exc
         raise
     except OSError as exc:
-        if expired.is_set():raise TimeoutError('Total generation deadline exceeded ('+str(total)+'s)') from exc
+        if deadline_reached():raise TimeoutError('Total generation deadline exceeded ('+str(total)+'s)') from exc
         raise
     finally:
         if timer:timer.cancel()
